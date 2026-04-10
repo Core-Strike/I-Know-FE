@@ -3,11 +3,10 @@ import { useStompAlert } from '../hooks/useStompAlert';
 import { useMicrophone } from '../hooks/useMicrophone';
 import { createSession, endSession, sendLectureChunk } from '../api';
 
-const DEFAULT_SESSION = { id: 12, className: '강의명 · 반 이름', startedAt: '14:10' };
-
 export default function InstructorPage() {
-  const [session, setSession] = useState(DEFAULT_SESSION);
+  const [session, setSession] = useState(null);   // 세션 시작 전에는 null
   const [sessionActive, setSessionActive] = useState(false);
+  const [copied, setCopied] = useState(false);
   const [alerts, setAlerts] = useState([
     {
       id: 1,
@@ -37,11 +36,12 @@ export default function InstructorPage() {
   const handleAudioChunk = useCallback(async (blob) => {
     // 실제 환경에서는 blob을 STT API로 전송한 후 텍스트 수신
     try {
+      if (!session) return;
       await sendLectureChunk({ sessionId: session.id, audio: 'base64...' });
     } catch (e) {
       console.warn('chunk send error', e.message);
     }
-  }, [session.id]);
+  }, [session]);
 
   const mic = useMicrophone({ onChunk: handleAudioChunk, chunkMs: 5000 });
 
@@ -72,7 +72,10 @@ export default function InstructorPage() {
       const data = await createSession({ className: '강의명', classId: 1 });
       setSession(data);
     } catch {
-      // mock: 서버 미연결 시 기본 세션 유지
+      // mock: 서버 미연결 시 임시 세션 생성
+      const now = new Date();
+      const hhmm = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+      setSession({ id: Math.floor(Math.random() * 900) + 100, className: '강의명 · 반 이름', startedAt: hhmm });
     }
     setSessionActive(true);
     mic.start();
@@ -80,10 +83,18 @@ export default function InstructorPage() {
 
   const handleEndSession = async () => {
     try {
-      await endSession(session.id);
+      if (session) await endSession(session.id);
     } catch {}
     setSessionActive(false);
+    setSession(null);
     mic.stop();
+  };
+
+  const handleCopyId = () => {
+    if (!session) return;
+    navigator.clipboard.writeText(String(session.id));
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
   };
 
   // ── 세션 통계 ──────────────────────────────────────────────
@@ -98,8 +109,10 @@ export default function InstructorPage() {
       {/* 헤더 */}
       <div className="top-bar">
         <div className="top-bar-left">
-          <h2>{session.className}</h2>
-          <p>세션 #{session.id} · {session.startedAt} 시작</p>
+          <h2>강사 페이지 — 마이크 음성 캡처 + 알림 수신</h2>
+          {session
+            ? <p>세션 #{session.id} · {session.startedAt} 시작</p>
+            : <p style={{ color: 'var(--text-secondary)' }}>세션을 시작하면 학생들이 입장할 수 있습니다</p>}
         </div>
         <div className="top-bar-right">
           {sessionActive && connected && (
@@ -110,7 +123,7 @@ export default function InstructorPage() {
           )}
           <button
             className="btn btn-primary"
-            onClick={sessionActive ? undefined : handleStartSession}
+            onClick={handleStartSession}
             disabled={sessionActive}
           >
             세션 시작
@@ -124,6 +137,41 @@ export default function InstructorPage() {
           </button>
         </div>
       </div>
+
+      {/* 세션 ID 안내 배너 */}
+      {sessionActive && session && (
+        <div style={{
+          background: '#eff6ff',
+          borderBottom: '1px solid #bfdbfe',
+          padding: '12px 24px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 16,
+        }}>
+          <span style={{ fontSize: 13, color: '#1d4ed8', fontWeight: 500 }}>
+            📢 학생들에게 세션 ID를 알려주세요
+          </span>
+          <span style={{
+            fontSize: 22,
+            fontWeight: 800,
+            letterSpacing: 4,
+            color: '#1e40af',
+            background: '#dbeafe',
+            padding: '4px 18px',
+            borderRadius: 8,
+          }}>
+            {session.id}
+          </span>
+          <button className="btn btn-outline" style={{ fontSize: 12, padding: '5px 12px' }} onClick={handleCopyId}>
+            {copied ? '✓ 복사됨' : '복사'}
+          </button>
+          <span style={{ fontSize: 12, color: '#6b7280', marginLeft: 'auto' }}>
+            학생 접속 주소: <code style={{ background: '#dbeafe', padding: '2px 6px', borderRadius: 4 }}>
+              {window.location.origin}/student/{session.id}
+            </code>
+          </span>
+        </div>
+      )}
 
       {/* 본문 */}
       <div className="page-body two-col">

@@ -1,0 +1,88 @@
+import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+
+export default function HomePage() {
+  const [sessionId, setSessionId] = useState('');
+  const [error, setError] = useState('');
+  const navigate = useNavigate();
+
+  const handleJoin = (e) => {
+    e.preventDefault();
+    const trimmed = sessionId.trim();
+    if (!trimmed) {
+      setError('세션 ID를 입력해 주세요.');
+      return;
+    }
+    if (!/^\d+$/.test(trimmed)) {
+      setError('세션 ID는 숫자만 입력 가능합니다.');
+      return;
+    }
+    navigate(`/student/${trimmed}`);
+  };
+
+  return (
+    <div
+      style={{
+        minHeight: '100vh',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        background: 'var(--bg)',
+      }}
+    >
+      <div
+        className="card"
+        style={{ width: 360, padding: '36px 32px', textAlign: 'center' }}
+      >
+        {/* 로고 영역 */}
+        <div style={{ marginBottom: 8, fontSize: 28 }}>📚</div>
+        <h2 style={{ fontSize: 18, fontWeight: 700, marginBottom: 4 }}>
+          iKnow
+        </h2>
+        <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 28 }}>
+          강사님이 알려준 세션 ID를 입력해 수업에 참가하세요
+        </p>
+
+        <form onSubmit={handleJoin} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <input
+            type="text"
+            inputMode="numeric"
+            placeholder="세션 ID 입력 (예: 12)"
+            value={sessionId}
+            onChange={(e) => {
+              setSessionId(e.target.value);
+              setError('');
+            }}
+            style={{
+              width: '100%',
+              padding: '10px 14px',
+              border: `1px solid ${error ? 'var(--red)' : 'var(--border)'}`,
+              borderRadius: 8,
+              fontSize: 15,
+              textAlign: 'center',
+              outline: 'none',
+              letterSpacing: 2,
+            }}
+            autoFocus
+          />
+          {error && (
+            <p style={{ fontSize: 12, color: 'var(--red)', marginTop: -4 }}>{error}</p>
+          )}
+          <button type="submit" className="btn btn-primary" style={{ width: '100%', justifyContent: 'center', padding: '10px' }}>
+            수업 참가
+          </button>
+        </form>
+
+        <p style={{ marginTop: 20, fontSize: 12, color: 'var(--text-secondary)' }}>
+          강사라면 →{' '}
+          <a
+            href="/instructor"
+            style={{ color: 'var(--blue)', textDecoration: 'underline' }}
+          >
+            강사 페이지
+          </a>
+        </p>
+      </div>
+    </div>
+  );
+}

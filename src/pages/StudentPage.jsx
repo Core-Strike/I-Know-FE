@@ -1,14 +1,16 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
 import { useWebcam } from '../hooks/useWebcam';
 import { analyzeFrame } from '../api';
 import axios from 'axios';
 
 const SPRING_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080';
-const CONFUSED_STREAK_NEEDED = 3;   // 연속 3회
-const SESSION_ID = 12;               // 실제 환경에서는 URL 파라미터 등으로 주입
-const STUDENT_ID = 103;
+const CONFUSED_STREAK_NEEDED = 3;
+const STUDENT_ID = 103; // 실제 환경에서는 로그인 세션 등으로 주입
 
 export default function StudentPage() {
+  const { sessionId } = useParams();   // URL: /student/:sessionId
+  const navigate = useNavigate();
   // ── 분석 상태 ──────────────────────────────────────────────
   const [scores, setScores] = useState({
     confusedScore: 0,
@@ -45,7 +47,7 @@ export default function StudentPage() {
             const now = new Date().toISOString();
             await axios.post(`${SPRING_URL}/api/confused-events`, {
               studentId: STUDENT_ID,
-              sessionId: SESSION_ID,
+              sessionId: Number(sessionId),
               capturedAt: now,
             });
             setLastSent(now);
@@ -91,8 +93,8 @@ export default function StudentPage() {
       {/* 상단 헤더 */}
       <div className="top-bar">
         <div className="top-bar-left">
-          <h2>강의명 · 반 이름</h2>
-          <p>세션 ID: #{SESSION_ID} · studentId: {STUDENT_ID}</p>
+          <h2>교육생 페이지</h2>
+          <p>세션 ID: #{sessionId} · studentId: {STUDENT_ID}</p>
         </div>
         <div className="top-bar-right">
           {active
@@ -103,6 +105,12 @@ export default function StudentPage() {
             onClick={active ? stop : start}
           >
             {active ? '세션 나가기' : '세션 참가'}
+          </button>
+          <button
+            className="btn btn-outline"
+            onClick={() => { stop(); navigate('/'); }}
+          >
+            ← 홈
           </button>
         </div>
       </div>
