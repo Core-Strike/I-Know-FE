@@ -8,6 +8,7 @@ import {
   endSession,
   getSessionAlerts,
   postLectureSummary,
+  saveLectureSummary,
   sendLectureChunk,
 } from '../api';
 import PinModal from '../components/PinModal';
@@ -21,10 +22,12 @@ function normalizeAlert(raw, fallback = {}) {
     time: raw.capturedAt?.slice(11, 19) ?? raw.createdAt?.slice(11, 19) ?? '-',
     confusedScore: raw.confusedScore ?? 0,
     reason: raw.reason ?? '',
-    unclearTopic: raw.unclearTopic ?? raw.lectureText ?? '(no transcript)',
-    transcript: raw.lectureText ?? null,
-    summary: raw.lectureSummary ?? null,
-    summaryView: 'transcript',
+    unclearTopic: raw.unclearTopic ?? raw.lectureText ?? '(전사 내용 없음)',
+    transcript: raw.lectureText ?? '',
+    summary: raw.lectureSummary ?? '',
+    summaryDraft: raw.lectureSummary ?? '',
+    generatingSummary: false,
+    savingSummary: false,
   };
 }
 
@@ -35,25 +38,27 @@ function SilenceToast({ onClose }) {
   }, [onClose]);
 
   return (
-    <div style={{
-      position: 'fixed',
-      right: 24,
-      bottom: 24,
-      zIndex: 999,
-      display: 'flex',
-      gap: 12,
-      alignItems: 'center',
-      padding: '14px 18px',
-      borderRadius: 10,
-      border: '1px solid #fcd34d',
-      background: '#fef3c7',
-      boxShadow: '0 4px 16px rgba(0,0,0,0.12)',
-      color: '#92400e',
-      fontSize: 13,
-    }}>
+    <div
+      style={{
+        position: 'fixed',
+        right: 24,
+        bottom: 24,
+        zIndex: 999,
+        display: 'flex',
+        gap: 12,
+        alignItems: 'center',
+        padding: '14px 18px',
+        borderRadius: 10,
+        border: '1px solid #fcd34d',
+        background: '#fef3c7',
+        boxShadow: '0 4px 16px rgba(0,0,0,0.12)',
+        color: '#92400e',
+        fontSize: 13,
+      }}
+    >
       <div>
-        <div style={{ fontWeight: 700 }}>30 minute silence warning</div>
-        <div style={{ fontSize: 12 }}>Check whether the microphone is muted.</div>
+        <div style={{ fontWeight: 700 }}>30분 무음 경고</div>
+        <div style={{ fontSize: 12 }}>마이크가 음소거 상태인지 확인해 주세요.</div>
       </div>
       <button
         onClick={onClose}
@@ -113,6 +118,12 @@ export default function InstructorPage() {
 
     const audioText = transcript.trim();
 
+    if (!audioText) {
+      activeCandidateRef.current = null;
+      processNextCandidateRef.current();
+      return;
+    }
+
     try {
       const createdAlert = await sendLectureChunk({
         sessionId: candidate.sessionId ?? session.id,
@@ -128,24 +139,14 @@ export default function InstructorPage() {
         classId: candidate.classId ?? session.classId,
       });
 
-      if (audioText) {
-        updateAlert(normalized.id, {
-          transcript: audioText,
-          unclearTopic: audioText,
-        });
-
-        const summaryResult = await postLectureSummary({
-          alertId: normalized.id,
-          audioText,
-        });
-
-        updateAlert(normalized.id, {
-          summary: summaryResult.summary ?? '',
-        });
-      }
+      updateAlert(normalized.id, {
+        transcript: audioText,
+        unclearTopic: audioText,
+        summaryDraft: normalized.summaryDraft || '',
+      });
     } catch (error) {
       console.warn('candidate finalize error:', error.message);
-      setSessionError('Failed to create or summarize the alert.');
+      setSessionError('알림 생성에 실패했습니다.');
     } finally {
       activeCandidateRef.current = null;
       processNextCandidateRef.current();
@@ -163,7 +164,7 @@ export default function InstructorPage() {
     }
 
     if (!stt.supported) {
-      setSessionError('SpeechRecognition is not supported in this browser.');
+      setSessionError('이 브라우저는 음성 인식을 지원하지 않습니다.');
       return;
     }
 
@@ -273,8 +274,56 @@ export default function InstructorPage() {
     setAlerts((prev) => prev.filter((item) => item.id !== alertId));
   }, []);
 
-  const handleToggleView = useCallback((alertId, summaryView) => {
-    updateAlert(alertId, { summaryView });
+  const handleSummaryDraftChange = useCallback((alertId, summaryDraft) => {
+    updateAlert(alertId, { summaryDraft });
+  }, [updateAlert]);
+
+  const handleGenerateSummary = useCallback(async (alert) => {
+    const transcript = alert.transcript.trim();
+    if (!transcript) {
+      setSessionError('전사 내용이 없으면 AI 요약을 생성할 수 없습니다.');
+      return;
+    }
+
+    updateAlert(alert.id, { generatingSummary: true });
+
+    try {
+      const result = await postLectureSummary({
+        alertId: alert.id,
+        audioText: transcript,
+      });
+
+      updateAlert(alert.id, {
+        summary: result.summary ?? '',
+        summaryDraft: result.summary ?? '',
+        reason: result.recommendedConcept ?? alert.reason,
+        generatingSummary: false,
+      });
+    } catch (error) {
+      console.warn('summary generation failed:', error.message);
+      updateAlert(alert.id, { generatingSummary: false });
+      setSessionError('AI 요약 생성에 실패했습니다.');
+    }
+  }, [updateAlert]);
+
+  const handleSaveSummary = useCallback(async (alert) => {
+    updateAlert(alert.id, { savingSummary: true });
+
+    try {
+      await saveLectureSummary({
+        alertId: alert.id,
+        summary: alert.summaryDraft ?? '',
+      });
+
+      updateAlert(alert.id, {
+        summary: alert.summaryDraft ?? '',
+        savingSummary: false,
+      });
+    } catch (error) {
+      console.warn('summary save failed:', error.message);
+      updateAlert(alert.id, { savingSummary: false });
+      setSessionError('요약 저장에 실패했습니다.');
+    }
   }, [updateAlert]);
 
   const alertCount = alerts.length;
@@ -301,23 +350,23 @@ export default function InstructorPage() {
 
       <div className="top-bar">
         <div className="top-bar-left">
-          <h2>Instructor Console</h2>
+          <h2>강사 콘솔</h2>
           {session
-            ? <p>Session #{session.id} · {session.startedAt} · class {session.classId}</p>
-            : <p style={{ color: 'var(--text-secondary)' }}>Start a session to wait for candidate events.</p>}
+            ? <p>세션 #{session.id} · {session.startedAt} · 반 ID {session.classId}</p>
+            : <p style={{ color: 'var(--text-secondary)' }}>세션을 시작하면 학생 알림을 기다립니다.</p>}
         </div>
         <div className="top-bar-right">
           {sessionActive && connected && (
-            <span className="badge badge-green"><span className="dot dot-green" />WebSocket connected</span>
+            <span className="badge badge-green"><span className="dot dot-green" />웹소켓 연결됨</span>
           )}
           {sessionActive && !connected && (
-            <span className="badge badge-orange"><span className="dot dot-gray" />WebSocket pending</span>
+            <span className="badge badge-orange"><span className="dot dot-gray" />웹소켓 연결 대기</span>
           )}
           <button className="btn btn-primary" onClick={() => setShowSettings(true)} disabled={sessionActive}>
-            Start Session
+            세션 시작
           </button>
           <button className="btn btn-danger" onClick={handleEndSession} disabled={!sessionActive}>
-            End Session
+            세션 종료
           </button>
         </div>
       </div>
@@ -329,28 +378,32 @@ export default function InstructorPage() {
       )}
 
       {sessionActive && session && (
-        <div style={{
-          background: '#eff6ff',
-          borderBottom: '1px solid #bfdbfe',
-          padding: '12px 24px',
-          display: 'flex',
-          alignItems: 'center',
-          gap: 16,
-          flexWrap: 'wrap',
-        }}>
+        <div
+          style={{
+            background: '#eff6ff',
+            borderBottom: '1px solid #bfdbfe',
+            padding: '12px 24px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 16,
+            flexWrap: 'wrap',
+          }}
+        >
           <span style={{ fontSize: 13, color: '#1d4ed8', fontWeight: 600 }}>
-            Share this session ID with students
+            학생들에게 이 세션 ID를 공유하세요
           </span>
-          <span style={{
-            fontSize: 26,
-            fontWeight: 800,
-            letterSpacing: 8,
-            color: '#1e40af',
-            background: '#dbeafe',
-            padding: '4px 18px',
-            borderRadius: 8,
-            fontFamily: 'monospace',
-          }}>
+          <span
+            style={{
+              fontSize: 26,
+              fontWeight: 800,
+              letterSpacing: 8,
+              color: '#1e40af',
+              background: '#dbeafe',
+              padding: '4px 18px',
+              borderRadius: 8,
+              fontFamily: 'monospace',
+            }}
+          >
             {session.id}
           </span>
           <button
@@ -358,10 +411,10 @@ export default function InstructorPage() {
             style={{ fontSize: 12, padding: '5px 12px' }}
             onClick={handleCopyId}
           >
-            {copied ? 'Copied' : 'Copy'}
+            {copied ? '복사됨' : '복사'}
           </button>
           <span style={{ fontSize: 12, color: '#6b7280', marginLeft: 'auto' }}>
-            Student URL:{' '}
+            학생 접속 주소:{' '}
             <code style={{ background: '#dbeafe', padding: '2px 6px', borderRadius: 4 }}>
               {window.location.origin}/student/{session.id}
             </code>
@@ -372,11 +425,11 @@ export default function InstructorPage() {
       <div className="page-body two-col">
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           <div className="card">
-            <p className="card-title">Microphone</p>
+            <p className="card-title">마이크</p>
             <div className="mic-status">
               <span className={`dot ${mic.active && !mic.muted ? 'dot-green' : mic.active && mic.muted ? 'dot-orange' : 'dot-gray'}`} />
               <span style={{ flex: 1 }}>
-                {!mic.active ? 'Stopped' : mic.muted ? 'Muted' : 'Listening'}
+                {!mic.active ? '중지됨' : mic.muted ? '음소거됨' : '듣는 중'}
               </span>
               {mic.active && (
                 <button
@@ -384,69 +437,71 @@ export default function InstructorPage() {
                   style={{ fontSize: 12, padding: '4px 12px' }}
                   onClick={mic.toggleMute}
                 >
-                  {mic.muted ? 'Unmute' : 'Mute'}
+                  {mic.muted ? '음소거 해제' : '음소거'}
                 </button>
               )}
             </div>
             {mic.error && (
               <div style={{ fontSize: 11, color: 'var(--red)', marginTop: 6 }}>
-                Error: {mic.error}
+                오류: {mic.error}
               </div>
             )}
             <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 8, marginBottom: 6 }}>
-              Candidate events trigger a 2 minute transcript capture before an alert is created.
+              학생 알림 후보가 오면 2분 동안 음성을 전사한 뒤 알림을 저장합니다.
             </p>
             {stt.supported && stt.recording && (
-              <div style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 8,
-                padding: '6px 10px',
-                background: '#f0fdf4',
-                borderRadius: 6,
-                fontSize: 12,
-                color: '#166534',
-              }}>
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  padding: '6px 10px',
+                  background: '#f0fdf4',
+                  borderRadius: 6,
+                  fontSize: 12,
+                  color: '#166534',
+                }}
+              >
                 <span className="dot dot-green" style={{ flexShrink: 0 }} />
-                Recording transcript for current candidate event...
+                현재 학생 이벤트에 대한 전사를 녹음 중입니다...
               </div>
             )}
             {!stt.supported && (
               <div style={{ fontSize: 11, color: '#9ca3af', fontStyle: 'italic' }}>
-                Web Speech API is not supported in this browser.
+                이 브라우저는 Web Speech API를 지원하지 않습니다.
               </div>
             )}
           </div>
 
           <div className="card">
-            <p className="card-title">Session Stats</p>
+            <p className="card-title">세션 통계</p>
             <div className="stats-row">
               <div className="stat-box">
                 <div className="stat-val red">{alertCount}</div>
-                <div className="stat-label">Alerts</div>
+                <div className="stat-label">알림 수</div>
               </div>
               <div className="stat-box">
                 <div className="stat-val">{alertCount ? `${avgConfusion}%` : '-'}</div>
-                <div className="stat-label">Avg confusion</div>
+                <div className="stat-label">평균 혼란도</div>
               </div>
               <div className="stat-box">
                 <div className="stat-val">{session?.classId ?? '-'}</div>
-                <div className="stat-label">Class</div>
+                <div className="stat-label">반 ID</div>
               </div>
             </div>
             {session?.thresholdPct && (
               <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 8, textAlign: 'center' }}>
-                Threshold {session.thresholdPct}%
+                임계값 {session.thresholdPct}%
               </div>
             )}
           </div>
 
           <div className="card">
-            <p className="card-title">Connection</p>
+            <p className="card-title">연결 상태</p>
             {[
               { label: 'Spring API', val: import.meta.env.VITE_API_URL || 'http://localhost:8080' },
-              { label: 'WebSocket', val: sessionActive ? (connected ? 'Connected' : 'Connecting...') : 'Idle' },
-              { label: 'Queued candidates', val: String(candidateQueueRef.current.length) },
+              { label: '웹소켓', val: sessionActive ? (connected ? '연결됨' : '연결 중...') : '대기 중' },
+              { label: '대기 중인 후보', val: String(candidateQueueRef.current.length) },
             ].map(({ label, val }) => (
               <div className="emotion-row" key={label}>
                 <span style={{ color: 'var(--text-secondary)', fontSize: 12 }}>{label}</span>
@@ -457,15 +512,17 @@ export default function InstructorPage() {
 
           {session?.curriculum && (
             <div className="card">
-              <p className="card-title">Curriculum</p>
-              <pre style={{
-                fontSize: 12,
-                color: 'var(--text-secondary)',
-                whiteSpace: 'pre-wrap',
-                margin: 0,
-                fontFamily: 'inherit',
-                lineHeight: 1.6,
-              }}>
+              <p className="card-title">오늘의 커리큘럼</p>
+              <pre
+                style={{
+                  fontSize: 12,
+                  color: 'var(--text-secondary)',
+                  whiteSpace: 'pre-wrap',
+                  margin: 0,
+                  fontFamily: 'inherit',
+                  lineHeight: 1.6,
+                }}
+              >
                 {session.curriculum}
               </pre>
             </div>
@@ -475,9 +532,9 @@ export default function InstructorPage() {
         <div className="card" style={{ overflowY: 'auto', maxHeight: 680 }}>
           <div className="section-divider">
             <p className="card-title" style={{ marginBottom: 0 }}>
-              Alerts
+              알림 목록
               {loadingAlerts && (
-                <span style={{ fontWeight: 400, marginLeft: 8, color: 'var(--text-secondary)' }}>Loading...</span>
+                <span style={{ fontWeight: 400, marginLeft: 8, color: 'var(--text-secondary)' }}>불러오는 중...</span>
               )}
             </p>
             {alertCount > 0 && (
@@ -487,13 +544,13 @@ export default function InstructorPage() {
 
           {!sessionActive && (
             <div style={{ textAlign: 'center', color: 'var(--text-secondary)', padding: '32px 0', fontSize: 13 }}>
-              Alerts appear after a candidate event is recorded and saved.
+              학생 이벤트가 기록되고 저장되면 알림이 표시됩니다.
             </div>
           )}
 
           {sessionActive && !loadingAlerts && alerts.length === 0 && (
             <div style={{ textAlign: 'center', color: 'var(--text-secondary)', padding: '32px 0', fontSize: 13 }}>
-              No saved alerts yet.
+              아직 저장된 알림이 없습니다.
             </div>
           )}
 
@@ -515,71 +572,86 @@ export default function InstructorPage() {
                   fontWeight: 600,
                 }}
               >
-                PASS
+                넘기기
               </button>
 
-              <div className="alert-card-title">Saved Alert</div>
-              <div className="alert-card-meta">
-                {alert.time} · session <strong>{alert.sessionId}</strong>
-                {' · '}score <strong className="text-red">{(alert.confusedScore ?? 0).toFixed(2)}</strong>
-              </div>
-              {alert.reason && (
-                <div className="alert-card-meta mt-1">{alert.reason}</div>
-              )}
+              <div className="alert-card-title">저장된 알림</div>
+              <div className="alert-card-meta">{alert.time}</div>
 
-              {(alert.transcript !== null || alert.summary !== null) && (
-                <div style={{ marginTop: 10, borderTop: '1px solid var(--border)', paddingTop: 10 }}>
-                  <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
-                    <button
-                      onClick={() => handleToggleView(alert.id, 'transcript')}
-                      style={{
-                        fontSize: 11,
-                        padding: '3px 10px',
-                        borderRadius: 5,
-                        cursor: 'pointer',
-                        border: '1px solid var(--border)',
-                        background: alert.summaryView === 'transcript' ? 'var(--blue)' : '#f3f4f6',
-                        color: alert.summaryView === 'transcript' ? '#fff' : '#374151',
-                        fontWeight: 600,
-                      }}
-                    >
-                      Full Transcript
-                    </button>
-                    <button
-                      onClick={() => handleToggleView(alert.id, 'summary')}
-                      disabled={!alert.summary}
-                      style={{
-                        fontSize: 11,
-                        padding: '3px 10px',
-                        borderRadius: 5,
-                        cursor: alert.summary ? 'pointer' : 'default',
-                        border: '1px solid var(--border)',
-                        background: alert.summaryView === 'summary' ? 'var(--blue)' : '#f3f4f6',
-                        color: alert.summaryView === 'summary' ? '#fff' : alert.summary ? '#374151' : '#9ca3af',
-                        fontWeight: 600,
-                      }}
-                    >
-                      Summary{!alert.summary ? ' (pending)' : ''}
-                    </button>
-                  </div>
-                  <div style={{
+              <div style={{ marginTop: 10, borderTop: '1px solid var(--border)', paddingTop: 10 }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: '#374151', marginBottom: 6 }}>
+                  전체 전사
+                </div>
+                <div
+                  style={{
                     fontSize: 12,
                     color: 'var(--text-secondary)',
                     background: '#fafaf7',
                     borderRadius: 6,
                     padding: '8px 10px',
-                    maxHeight: 160,
-                    overflowY: 'auto',
+                    minHeight: 72,
                     lineHeight: 1.6,
                     whiteSpace: 'pre-wrap',
                     fontStyle: 'italic',
-                  }}>
-                    {alert.summaryView === 'transcript'
-                      ? (alert.transcript || '(no transcript)')
-                      : (alert.summary || '(summary pending)')}
+                  }}
+                >
+                  {alert.transcript || '(전사 내용 없음)'}
+                </div>
+              </div>
+
+              <div style={{ marginTop: 10, borderTop: '1px solid var(--border)', paddingTop: 10 }}>
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: 8,
+                    marginBottom: 8,
+                    flexWrap: 'wrap',
+                  }}
+                >
+                  <div style={{ fontSize: 11, fontWeight: 700, color: '#374151' }}>요약</div>
+                  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                    <button
+                      type="button"
+                      className="btn btn-outline"
+                      style={{ fontSize: 11, padding: '4px 10px' }}
+                      disabled={alert.generatingSummary || !alert.transcript.trim()}
+                      onClick={() => { void handleGenerateSummary(alert); }}
+                    >
+                      {alert.generatingSummary ? 'AI 요약 생성 중...' : 'AI로 요약'}
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn-primary"
+                      style={{ fontSize: 11, padding: '4px 10px' }}
+                      disabled={alert.savingSummary}
+                      onClick={() => { void handleSaveSummary(alert); }}
+                    >
+                      {alert.savingSummary ? '저장 중...' : '직접 입력 저장'}
+                    </button>
                   </div>
                 </div>
-              )}
+                <textarea
+                  value={alert.summaryDraft}
+                  onChange={(e) => handleSummaryDraftChange(alert.id, e.target.value)}
+                  placeholder="요약을 직접 입력하거나 AI 요약을 생성해 보세요."
+                  rows={5}
+                  style={{
+                    width: '100%',
+                    padding: '9px 12px',
+                    border: '1px solid var(--border)',
+                    borderRadius: 8,
+                    fontSize: 12,
+                    outline: 'none',
+                    resize: 'vertical',
+                    fontFamily: 'inherit',
+                    lineHeight: 1.6,
+                    color: 'var(--text-primary)',
+                    background: '#fff',
+                  }}
+                />
+              </div>
             </div>
           ))}
         </div>

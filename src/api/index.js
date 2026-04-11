@@ -22,8 +22,8 @@ export const getSessionAlerts = (id) =>
 export const getConfusedEvents = (id) =>
   http.get(`/api/sessions/${id}/confused-events`).then((r) => r.data);
 
-export const getDashboardClasses = () =>
-  http.get('/api/dashboard/classes').then((r) => r.data);
+export const getDashboardClasses = (date) =>
+  http.get('/api/dashboard/classes', { params: { date } }).then((r) => r.data);
 
 export const analyzeFrame = (blob, studentId) => {
   const form = new FormData();
@@ -43,10 +43,14 @@ export const deleteAlert = (alertId) =>
 export const postLectureSummary = async ({ alertId, audioText }) => {
   const aiRes = await ai.post('/ai-api/summarize', { audioText }).then((r) => r.data);
   const summary = aiRes.summary ?? '';
+  const recommendedConcept = aiRes.recommendedConcept ?? '';
 
-  await http.post('/api/lecture-summary', { alertId, summary });
-  return { summary };
+  await http.post('/api/lecture-summary', { alertId, summary, recommendedConcept });
+  return { summary, recommendedConcept };
 };
+
+export const saveLectureSummary = ({ alertId, summary, recommendedConcept }) =>
+  http.post('/api/lecture-summary', { alertId, summary, recommendedConcept }).then((r) => r.data);
 
 export const getLectureSummary = (alertId) =>
   http.get(`/api/alerts/${alertId}/summary`).then((r) => r.data);

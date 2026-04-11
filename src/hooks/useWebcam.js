@@ -27,7 +27,6 @@ export function useWebcam({ onFrame, intervalMs = 10000, enabled = false }) {
       setError(null);
       const stream = await navigator.mediaDevices.getUserMedia({ video: true });
       streamRef.current = stream;
-      if (videoRef.current) videoRef.current.srcObject = stream;
       setActive(true);
     } catch (e) {
       setError(e.message);
@@ -51,6 +50,19 @@ export function useWebcam({ onFrame, intervalMs = 10000, enabled = false }) {
     }
     return () => clearInterval(timerRef.current);
   }, [active, enabled, capture, intervalMs]);
+
+  useEffect(() => {
+    const video = videoRef.current;
+    const stream = streamRef.current;
+
+    if (!video || !stream) return;
+
+    if (video.srcObject !== stream) {
+      video.srcObject = stream;
+    }
+
+    video.play().catch(() => {});
+  }, [active]);
 
   return { videoRef, active, error, start, stop };
 }
