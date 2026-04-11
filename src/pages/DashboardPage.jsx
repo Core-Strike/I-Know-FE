@@ -30,9 +30,11 @@ function normalizeResponse(dataArray) {
       id: alert.id ?? `${item.classId}-${index}`,
       capturedAt: alert.capturedAt ?? alert.createdAt ?? '',
       time: alert.capturedAt?.slice(11, 16) ?? alert.createdAt?.slice(11, 16) ?? '-',
-      topic: alert.unclearTopic ?? '-',
+      topic: alert.lectureSummary ?? alert.unclearTopic ?? '-',
       reason: alert.reason ?? '',
-      confusion: Math.round((alert.confusedScore ?? 0) * 100),
+      confusion: alert.totalStudentCount > 0
+        ? Math.round(((alert.studentCount ?? 0) / alert.totalStudentCount) * 100)
+        : Math.round((alert.confusedScore ?? 0) * 100),
     })),
   }));
 }
@@ -188,7 +190,7 @@ export default function DashboardPage() {
             </button>
             <h2>대시보드</h2>
           </div>
-          <p>왼쪽 커리큘럼 목록은 세션 시작 콤보박스 값과 완전히 동일합니다.</p>
+          <p>왼쪽 커리큘럼 목록은 수업 시작 콤보박스 값과 완전히 동일합니다.</p>
         </div>
         <div className="top-bar-right">
           <label style={{ fontSize: 13, color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -290,7 +292,7 @@ export default function DashboardPage() {
             </div>
             <div className="kpi-card">
               <div className="kpi-val">{kpi.avgConfusion}%</div>
-              <div className="kpi-label">평균 혼란도</div>
+              <div className="kpi-label">평균 이해 어려움 정도</div>
             </div>
             <div className="kpi-card">
               <div className="kpi-val">{kpi.students}</div>
@@ -315,7 +317,7 @@ export default function DashboardPage() {
             </div>
 
             <div className="card">
-              <p className="card-title">시간대별 혼란도 추이</p>
+              <p className="card-title">시간대별 이해 어려움 정도 추이</p>
               <ResponsiveContainer width="100%" height={180}>
                 <LineChart data={lineData} margin={{ top: 4, right: 8, left: -20, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#f0f0ec" />
@@ -323,7 +325,7 @@ export default function DashboardPage() {
                   <YAxis tick={{ fontSize: 11 }} domain={[0, 100]} unit="%" />
                   <Tooltip
                     contentStyle={{ fontSize: 12, borderRadius: 6 }}
-                    formatter={(value) => [`${value}%`, '혼란도']}
+                    formatter={(value) => [`${value}%`, '이해 어려움 정도']}
                   />
                   <ReferenceLine y={50} stroke="#ef4444" strokeDasharray="5 5" />
                   <Line
@@ -353,8 +355,8 @@ export default function DashboardPage() {
                   <th style={{ width: '12%' }}>시각</th>
                   <th style={{ width: '12%' }}>반</th>
                   <th style={{ width: '32%' }}>헷갈린 내용</th>
-                  <th style={{ width: '32%' }}>사유</th>
-                  <th style={{ width: '12%', textAlign: 'right' }}>혼란도</th>
+                  <th style={{ width: '32%' }}>보충할 내용</th>
+                  <th style={{ width: '12%', textAlign: 'right' }}>이해 어려움 정도</th>
                 </tr>
               </thead>
               <tbody>

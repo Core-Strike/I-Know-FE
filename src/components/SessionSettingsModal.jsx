@@ -28,9 +28,9 @@ export default function SessionSettingsModal({ onConfirm, onCancel }) {
       }}
     >
       <div className="card" style={{ width: 420, padding: '32px 28px' }}>
-        <h2 style={{ fontSize: 16, fontWeight: 700, marginBottom: 4 }}>세션 시작 설정</h2>
+        <h2 style={{ fontSize: 16, fontWeight: 700, marginBottom: 4 }}>수업 시작 설정</h2>
         <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 24 }}>
-          세션 생성 전에 기본 옵션을 설정합니다.
+          수업 생성 전에 기본 옵션을 설정합니다.
         </p>
 
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
@@ -122,7 +122,7 @@ export default function SessionSettingsModal({ onConfirm, onCancel }) {
               취소
             </button>
             <button type="submit" className="btn btn-primary">
-              세션 시작
+              수업 시작
             </button>
           </div>
         </form>

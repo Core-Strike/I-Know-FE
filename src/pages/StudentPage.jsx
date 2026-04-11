@@ -64,6 +64,8 @@ export default function StudentPage() {
             await postConfusedEvent({
               studentId:     studentId,
               sessionId:     sessionId,
+              studentCount:  1,
+              totalStudentCount: 1,
               capturedAt:    now,
               confusedScore: result.confidence ?? 0,
               reason:        result.gpt_reason ?? '',
@@ -113,7 +115,7 @@ export default function StudentPage() {
       <div className="top-bar">
         <div className="top-bar-left">
           <h2>교육생 페이지</h2>
-          <p>세션 ID: {sessionId} · 이름: <strong>{studentId}</strong></p>
+          <p>수업 ID: {sessionId} · 이름: <strong>{studentId}</strong></p>
         </div>
         <div className="top-bar-right">
           {active
@@ -123,7 +125,7 @@ export default function StudentPage() {
             className={`btn ${active ? 'btn-danger' : 'btn-primary'}`}
             onClick={active ? stop : start}
           >
-            {active ? '세션 나가기' : '세션 참가'}
+            {active ? '수업 나가기' : '수업 참가'}
           </button>
           <button
             className="btn btn-outline"
@@ -159,8 +161,13 @@ export default function StudentPage() {
           <div style={{ marginTop: 10, fontSize: 12, color: 'var(--text-secondary)', textAlign: 'center' }}>
             {active
               ? '10초마다 자동 캡처 · FastAPI 분석 중'
-              : '세션 참가 후 자동으로 시작됩니다'}
+              : '수업 참가 후 자동으로 시작됩니다'}
           </div>
+          {active && (
+            <div style={{ marginTop: 6, fontSize: 11, color: 'var(--text-secondary)', textAlign: 'center' }}>
+              캡처 이미지는 별도로 저장되지 않습니다.
+            </div>
+          )}
         </div>
 
         {/* 우: 실시간 감지 상태 + 전송 상태 */}

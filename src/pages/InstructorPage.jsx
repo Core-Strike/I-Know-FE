@@ -19,6 +19,8 @@ function normalizeAlert(raw, fallback = {}) {
     id: raw.id,
     sessionId: raw.sessionId ?? fallback.sessionId ?? '-',
     classId: raw.classId ?? fallback.classId ?? '-',
+    studentCount: raw.studentCount ?? fallback.studentCount ?? 1,
+    totalStudentCount: raw.totalStudentCount ?? fallback.totalStudentCount ?? 1,
     time: raw.capturedAt?.slice(11, 19) ?? raw.createdAt?.slice(11, 19) ?? '-',
     confusedScore: raw.confusedScore ?? 0,
     reason: raw.reason ?? '',
@@ -83,6 +85,7 @@ export default function InstructorPage() {
 
   const candidateQueueRef = useRef([]);
   const activeCandidateRef = useRef(null);
+  const alertsRef = useRef([]);
 
   const handleSilenceWarning = useCallback(() => setShowSilenceToast(true), []);
 
@@ -108,6 +111,10 @@ export default function InstructorPage() {
       item.id === alertId ? { ...item, ...patch } : item
     )));
   }, []);
+
+  useEffect(() => {
+    alertsRef.current = alerts;
+  }, [alerts]);
 
   const processNextCandidateRef = useRef(() => {});
 
@@ -138,6 +145,8 @@ export default function InstructorPage() {
       const createdAlert = await sendLectureChunk({
         sessionId: candidate.sessionId ?? session.id,
         classId: candidate.classId ?? session.classId,
+        studentCount: candidate.studentCount ?? 1,
+        totalStudentCount: candidate.totalStudentCount ?? 1,
         capturedAt: candidate.capturedAt ?? new Date().toISOString().slice(0, 19),
         audioText,
         confusedScore: candidate.confusedScore ?? 0,
@@ -147,6 +156,8 @@ export default function InstructorPage() {
       const normalized = upsertAlert(createdAlert, {
         sessionId: candidate.sessionId ?? session.id,
         classId: candidate.classId ?? session.classId,
+        studentCount: candidate.studentCount ?? 1,
+        totalStudentCount: candidate.totalStudentCount ?? 1,
       });
 
       updateAlert(normalized.id, {
@@ -315,25 +326,30 @@ export default function InstructorPage() {
     }
   }, [updateAlert]);
 
-  const handleSaveSummary = useCallback(async (alert) => {
-    updateAlert(alert.id, { savingSummary: true });
+  const handleSaveSummary = useCallback(async (alertId) => {
+    const currentAlert = alertsRef.current.find((item) => item.id === alertId);
+    if (!currentAlert) {
+      return;
+    }
+
+    updateAlert(alertId, { savingSummary: true });
 
     try {
       const saved = await saveLectureSummary({
-        alertId: alert.id,
-        summary: alert.summaryDraft ?? '',
-        recommendedConcept: alert.reason ?? '',
+        alertId,
+        summary: currentAlert.summaryDraft ?? '',
+        recommendedConcept: currentAlert.reason ?? '',
       });
 
-      updateAlert(alert.id, {
-        summary: saved?.lectureSummary ?? alert.summaryDraft ?? '',
-        summaryDraft: saved?.lectureSummary ?? alert.summaryDraft ?? '',
-        reason: saved?.reason ?? alert.reason ?? '',
+      updateAlert(alertId, {
+        summary: saved?.lectureSummary ?? currentAlert.summaryDraft ?? '',
+        summaryDraft: saved?.lectureSummary ?? currentAlert.summaryDraft ?? '',
+        reason: saved?.reason ?? currentAlert.reason ?? '',
         savingSummary: false,
       });
     } catch (error) {
       console.warn('summary save failed:', error.message);
-      updateAlert(alert.id, { savingSummary: false });
+      updateAlert(alertId, { savingSummary: false });
       setSessionError('요약 저장에 실패했습니다.');
     }
   }, [updateAlert]);
@@ -342,6 +358,9 @@ export default function InstructorPage() {
   const avgConfusion = alertCount
     ? Math.round(alerts.reduce((sum, item) => sum + (item.confusedScore ?? 0), 0) / alertCount * 100)
     : 0;
+  const liveTranscriptPreview = stt.liveTranscript
+    ? stt.liveTranscript.slice(-30)
+    : '';
 
   if (!pinPassed) {
     return <PinModal onSuccess={() => setPinPassed(true)} />;
@@ -364,8 +383,8 @@ export default function InstructorPage() {
         <div className="top-bar-left">
           <h2>강사 콘솔</h2>
           {session
-            ? <p>세션 #{session.id} · {session.startedAt} · 반 ID {session.classId}</p>
-            : <p style={{ color: 'var(--text-secondary)' }}>세션을 시작하면 학생 알림을 기다립니다.</p>}
+            ? <p>수업 #{session.id} · {session.startedAt} · 반 ID {session.classId}</p>
+            : <p style={{ color: 'var(--text-secondary)' }}>수업을 시작하면 학생 알림을 기다립니다.</p>}
         </div>
         <div className="top-bar-right">
           {sessionActive && connected && (
@@ -375,10 +394,10 @@ export default function InstructorPage() {
             <span className="badge badge-orange"><span className="dot dot-gray" />웹소켓 연결 대기</span>
           )}
           <button className="btn btn-primary" onClick={() => setShowSettings(true)} disabled={sessionActive}>
-            세션 시작
+            수업 시작
           </button>
           <button className="btn btn-danger" onClick={handleEndSession} disabled={!sessionActive}>
-            세션 종료
+            수업 종료
           </button>
         </div>
       </div>
@@ -402,7 +421,7 @@ export default function InstructorPage() {
           }}
         >
           <span style={{ fontSize: 13, color: '#1d4ed8', fontWeight: 600 }}>
-            학생들에게 이 세션 ID를 공유하세요
+            학생들에게 이 수업 ID를 공유하세요
           </span>
           <span
             style={{
@@ -490,7 +509,7 @@ export default function InstructorPage() {
                   }}
                   title={stt.liveTranscript || ''}
                 >
-                  {stt.liveTranscript || '실시간 전사 내용이 아직 없습니다.'}
+                  {liveTranscriptPreview || '실시간 전사 내용이 아직 없습니다.'}
                 </div>
               </div>
             )}
@@ -502,7 +521,7 @@ export default function InstructorPage() {
           </div>
 
           <div className="card">
-            <p className="card-title">세션 통계</p>
+            <p className="card-title">수업 통계</p>
             <div className="stats-row">
               <div className="stat-box">
                 <div className="stat-val red">{alertCount}</div>
@@ -510,7 +529,7 @@ export default function InstructorPage() {
               </div>
               <div className="stat-box">
                 <div className="stat-val">{alertCount ? `${avgConfusion}%` : '-'}</div>
-                <div className="stat-label">평균 혼란도</div>
+                <div className="stat-label">평균 이해 어려움 정도</div>
               </div>
               <div className="stat-box">
                 <div className="stat-val">{session?.classId ?? '-'}</div>
@@ -658,7 +677,7 @@ export default function InstructorPage() {
                       className="btn btn-primary"
                       style={{ fontSize: 11, padding: '4px 10px' }}
                       disabled={alert.savingSummary || alert.generatingSummary}
-                      onClick={() => { void handleSaveSummary(alert); }}
+                      onClick={() => { void handleSaveSummary(alert.id); }}
                     >
                       {alert.savingSummary
                         ? '저장 중...'

@@ -13,11 +13,11 @@ export default function HomePage() {
     const trimmedName = name.trim();
 
     if (!trimmedId) {
-      setError('세션 ID를 입력해 주세요.');
+      setError('수업 ID를 입력해 주세요.');
       return;
     }
     if (!/^\d{6}$/.test(trimmedId)) {
-      setError('세션 ID는 6자리 숫자여야 합니다.');
+      setError('수업 ID는 6자리 숫자여야 합니다.');
       return;
     }
     if (!trimmedName) {
@@ -55,14 +55,14 @@ export default function HomePage() {
           iKnow
         </h2>
         <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 28 }}>
-          강사님이 알려준 세션 ID를 입력해 수업에 참가하세요
+          강사님이 알려준 수업 ID를 입력해 수업에 참가하세요
         </p>
 
         <form onSubmit={handleJoin} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           <input
             type="text"
             inputMode="numeric"
-            placeholder="세션 ID (6자리 숫자)"
+            placeholder="수업 ID (6자리 숫자)"
             value={sessionId}
             onChange={handleSessionIdChange}
             maxLength={6}
