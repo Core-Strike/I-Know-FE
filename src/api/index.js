@@ -29,13 +29,18 @@ const ai = axios.create({
   timeout: 15000,
 });
 
+// 명세: POST /analyze/{student_id}  multipart/form-data  body: file
 export const analyzeFrame = (blob, studentId) => {
   const form = new FormData();
   form.append('file', blob, 'frame.jpg');
-  form.append('student_id', String(studentId));
-  return ai.post('/ai-api/analyze', form).then((r) => r.data);
+  // student_id 는 path parameter — body 에 포함하지 않음
+  return ai.post(`/analyze/${encodeURIComponent(studentId)}`, form).then((r) => r.data);
 };
 
-// ─── Lecture chunk (STT 텍스트 전송, optional) ─────────────
+// ─── Confused 이벤트 전송 (교육생 → Spring) ────────────────
+export const postConfusedEvent = (data) =>
+  http.post('/api/confused-events', data).then((r) => r.data);
+
+// ─── Lecture chunk ──────────────────────────────────────────
 export const sendLectureChunk = (data) =>
-  http.post('/app/lecture-chunk', data).then((r) => r.data);
+  http.post('/api/lecture-chunk', data).then((r) => r.data);

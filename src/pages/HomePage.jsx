@@ -13,11 +13,8 @@ export default function HomePage() {
       setError('세션 ID를 입력해 주세요.');
       return;
     }
-    if (!/^\d+$/.test(trimmed)) {
-      setError('세션 ID는 숫자만 입력 가능합니다.');
-      return;
-    }
-    navigate(`/student/${trimmed}`);
+    // sessionId는 UUID 문자열 (예: 550e8400-e29b-41d4-a716-446655440000)
+    navigate(`/student/${encodeURIComponent(trimmed)}`);
   };
 
   return (
@@ -46,8 +43,7 @@ export default function HomePage() {
         <form onSubmit={handleJoin} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           <input
             type="text"
-            inputMode="numeric"
-            placeholder="세션 ID 입력 (예: 12)"
+            placeholder="세션 ID 입력 (예: 550e8400-e29b-41d4-a716-...)"
             value={sessionId}
             onChange={(e) => {
               setSessionId(e.target.value);
@@ -58,10 +54,11 @@ export default function HomePage() {
               padding: '10px 14px',
               border: `1px solid ${error ? 'var(--red)' : 'var(--border)'}`,
               borderRadius: 8,
-              fontSize: 15,
+              fontSize: 13,
               textAlign: 'center',
               outline: 'none',
-              letterSpacing: 2,
+              letterSpacing: 1,
+              fontFamily: 'monospace',
             }}
             autoFocus
           />

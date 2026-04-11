@@ -138,7 +138,8 @@ axios 인스턴스 두 개를 관리합니다.
 | `getConfusedEvents(id)` | GET | `/api/sessions/:id/confused-events` | confused 이벤트 목록 |
 | `getDashboardClasses()` | GET | `/api/dashboard/classes` | 반별 통계 |
 | `analyzeFrame(blob, studentId)` | POST | `/ai-api/analyze` | 이미지 표정 분석 |
-| `sendLectureChunk(data)` | POST | `/app/lecture-chunk` | 강사 음성 청크 전송 |
+| `postConfusedEvent(data)` | POST | `/api/confused-events` | 교육생 confused 이벤트 전송 |
+| `sendLectureChunk(data)` | POST | `/api/lecture-chunk` | 강사 음성 청크 전송 |
 
 ---
 
@@ -332,7 +333,8 @@ Spring Boot
 | GET | `/api/sessions/:id/alerts` | 세션 알림 이력 |
 | GET | `/api/sessions/:id/confused-events` | confused 이벤트 목록 |
 | GET | `/api/dashboard/classes` | 반별 통계 |
-| POST | `/app/lecture-chunk` | 강사 음성 청크 전송 |
+| POST | `/api/confused-events` | 교육생 confused 이벤트 전송 |
+| POST | `/api/lecture-chunk` | 강사 음성 청크 전송 |
 
 ### FastAPI (`VITE_AI_URL`)
 
