@@ -3,18 +3,36 @@ import { useNavigate } from 'react-router-dom';
 
 export default function HomePage() {
   const [sessionId, setSessionId] = useState('');
-  const [error, setError] = useState('');
+  const [name, setName]           = useState('');
+  const [error, setError]         = useState('');
   const navigate = useNavigate();
 
   const handleJoin = (e) => {
     e.preventDefault();
-    const trimmed = sessionId.trim();
-    if (!trimmed) {
+    const trimmedId   = sessionId.trim();
+    const trimmedName = name.trim();
+
+    if (!trimmedId) {
       setError('세션 ID를 입력해 주세요.');
       return;
     }
-    // sessionId는 UUID 문자열 (예: 550e8400-e29b-41d4-a716-446655440000)
-    navigate(`/student/${encodeURIComponent(trimmed)}`);
+    if (!/^\d{6}$/.test(trimmedId)) {
+      setError('세션 ID는 6자리 숫자여야 합니다.');
+      return;
+    }
+    if (!trimmedName) {
+      setError('이름을 입력해 주세요.');
+      return;
+    }
+
+    navigate(`/student/${encodeURIComponent(trimmedId)}?name=${encodeURIComponent(trimmedName)}`);
+  };
+
+  const handleSessionIdChange = (e) => {
+    // 숫자만 허용, 최대 6자리
+    const val = e.target.value.replace(/\D/g, '').slice(0, 6);
+    setSessionId(val);
+    setError('');
   };
 
   return (
@@ -43,24 +61,39 @@ export default function HomePage() {
         <form onSubmit={handleJoin} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           <input
             type="text"
-            placeholder="세션 ID 입력 (예: 550e8400-e29b-41d4-a716-...)"
+            inputMode="numeric"
+            placeholder="세션 ID (6자리 숫자)"
             value={sessionId}
-            onChange={(e) => {
-              setSessionId(e.target.value);
-              setError('');
-            }}
+            onChange={handleSessionIdChange}
+            maxLength={6}
             style={{
               width: '100%',
               padding: '10px 14px',
               border: `1px solid ${error ? 'var(--red)' : 'var(--border)'}`,
               borderRadius: 8,
-              fontSize: 13,
+              fontSize: 20,
               textAlign: 'center',
               outline: 'none',
-              letterSpacing: 1,
+              letterSpacing: 6,
               fontFamily: 'monospace',
+              fontWeight: 700,
             }}
             autoFocus
+          />
+          <input
+            type="text"
+            placeholder="이름 입력 (예: 홍길동)"
+            value={name}
+            onChange={(e) => { setName(e.target.value); setError(''); }}
+            style={{
+              width: '100%',
+              padding: '10px 14px',
+              border: `1px solid ${error ? 'var(--red)' : 'var(--border)'}`,
+              borderRadius: 8,
+              fontSize: 14,
+              textAlign: 'center',
+              outline: 'none',
+            }}
           />
           {error && (
             <p style={{ fontSize: 12, color: 'var(--red)', marginTop: -4 }}>{error}</p>

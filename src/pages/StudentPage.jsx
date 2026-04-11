@@ -1,20 +1,23 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useWebcam } from '../hooks/useWebcam';
 import { analyzeFrame, postConfusedEvent } from '../api';
 
 const CONFUSED_STREAK_NEEDED = 3;
-// studentId: 명세상 "student_42" 형식의 문자열
-const STUDENT_ID = 'student_103';
 
 export default function StudentPage() {
-  const { sessionId } = useParams();   // URL: /student/:sessionId (UUID 문자열)
+  const { sessionId } = useParams();   // URL: /student/:sessionId (6자리 숫자 문자열)
+  const [searchParams] = useSearchParams();
   const navigate = useNavigate();
+
+  // URL ?name= 쿼리에서 학생 이름(= studentId) 읽기
+  const studentId = searchParams.get('name') || 'student_unknown';
+
   // ── 분석 상태 (명세 응답 구조 반영) ───────────────────────
   const [analysisResult, setAnalysisResult] = useState({
     confused:    false,
-    confidence:  0,       // 혼란도 점수 (0~1)
-    emotion:     '-',     // 주요 감정 문자열
+    confidence:  0,
+    emotion:     '-',
     gpt_reason:  '',
     face_features: {
       face_detected:  false,
@@ -27,22 +30,16 @@ export default function StudentPage() {
     },
   });
   const [confusedStreak, setConfusedStreak] = useState(0);
-  const [lastSent, setLastSent] = useState(null);
-  const [cooldown, setCooldown] = useState(false);
+  const [lastSent, setLastSent]             = useState(null);
+  const [cooldown, setCooldown]             = useState(false);
   const cooldownTimer = useRef(null);
-  const streakRef = useRef(0);
+  const streakRef     = useRef(0);
 
   // ── 이미지 분석 & 전송 ─────────────────────────────────────
   const handleFrame = useCallback(
     async (blob) => {
       try {
-        const result = await analyzeFrame(blob, STUDENT_ID);
-        /**
-         * 명세 응답:
-         * { studentId, confused, confidence, emotion, gpt_reason,
-         *   face_features: { face_detected, emotions:{happy,neutral,fear,sad,angry,disgust,surprise},
-         *                    top_emotion, confidence, brow_eye_ratio, ear, head_tilt_deg } }
-         */
+        const result = await analyzeFrame(blob, studentId);
         setAnalysisResult({
           confused:   result.confused   ?? false,
           confidence: result.confidence ?? 0,
@@ -62,18 +59,16 @@ export default function StudentPage() {
         if (result.confused) {
           streakRef.current += 1;
           setConfusedStreak(streakRef.current);
-          // 연속 3회 달성 + cooldown 아님
           if (streakRef.current >= CONFUSED_STREAK_NEEDED && !cooldown) {
             const now = new Date().toISOString().slice(0, 19);
             await postConfusedEvent({
-              studentId:    STUDENT_ID,
-              sessionId:    sessionId,
-              capturedAt:   now,
-              confusedScore: result.confidence ?? 0,   // 명세: confidence 필드
-              reason:        result.gpt_reason ?? '',  // 명세: gpt_reason 필드
+              studentId:     studentId,
+              sessionId:     sessionId,
+              capturedAt:    now,
+              confusedScore: result.confidence ?? 0,
+              reason:        result.gpt_reason ?? '',
             });
             setLastSent(now);
-            // 30초 쿨다운
             setCooldown(true);
             streakRef.current = 0;
             setConfusedStreak(0);
@@ -88,7 +83,7 @@ export default function StudentPage() {
         console.warn('analyze error', e.message);
       }
     },
-    [cooldown],
+    [cooldown, studentId, sessionId],
   );
 
   const { videoRef, active, error, start, stop } = useWebcam({
@@ -118,7 +113,7 @@ export default function StudentPage() {
       <div className="top-bar">
         <div className="top-bar-left">
           <h2>교육생 페이지</h2>
-          <p>세션 ID: {sessionId} · studentId: {STUDENT_ID}</p>
+          <p>세션 ID: {sessionId} · 이름: <strong>{studentId}</strong></p>
         </div>
         <div className="top-bar-right">
           {active
@@ -174,7 +169,6 @@ export default function StudentPage() {
           <div className="card">
             <p className="card-title">실시간 감지 상태</p>
 
-            {/* confidence 바 (= confused 판정 점수) */}
             <div className="score-bar-wrap">
               <div className="score-bar-header">
                 <span>confidence</span>
@@ -194,7 +188,6 @@ export default function StudentPage() {
               </div>
             </div>
 
-            {/* face_features.emotions — 7개 감정 점수 */}
             {['happy','neutral','fear','sad','angry','disgust','surprise'].map((key) => (
               <div className="emotion-row" key={key}>
                 <span>{key}</span>
@@ -202,7 +195,6 @@ export default function StudentPage() {
               </div>
             ))}
 
-            {/* face_features 부가 정보 */}
             {face_features.face_detected && (
               <div style={{ marginTop: 10, padding: '8px 0', borderTop: '1px solid var(--border)', fontSize: 12, color: 'var(--text-secondary)' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 3 }}>
@@ -217,7 +209,6 @@ export default function StudentPage() {
               </div>
             )}
 
-            {/* GPT reason */}
             {gpt_reason && (
               <div style={{ marginTop: 10, padding: '8px 10px', background: '#fafaf7', borderRadius: 6, fontSize: 12, color: 'var(--text-secondary)', fontStyle: 'italic' }}>
                 {gpt_reason}
