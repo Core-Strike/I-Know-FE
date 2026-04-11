@@ -310,13 +310,16 @@ export default function InstructorPage() {
     updateAlert(alert.id, { savingSummary: true });
 
     try {
-      await saveLectureSummary({
+      const saved = await saveLectureSummary({
         alertId: alert.id,
         summary: alert.summaryDraft ?? '',
+        recommendedConcept: alert.reason ?? '',
       });
 
       updateAlert(alert.id, {
-        summary: alert.summaryDraft ?? '',
+        summary: saved?.lectureSummary ?? alert.summaryDraft ?? '',
+        summaryDraft: saved?.lectureSummary ?? alert.summaryDraft ?? '',
+        reason: saved?.reason ?? alert.reason ?? '',
         savingSummary: false,
       });
     } catch (error) {
@@ -529,7 +532,7 @@ export default function InstructorPage() {
           )}
         </div>
 
-        <div className="card" style={{ overflowY: 'auto', maxHeight: 680 }}>
+        <div className="card" style={{ overflowY: 'auto', maxHeight: 'calc(100vh - 180px)', minHeight: 520 }}>
           <div className="section-divider">
             <p className="card-title" style={{ marginBottom: 0 }}>
               알림 목록
@@ -616,19 +619,27 @@ export default function InstructorPage() {
                       type="button"
                       className="btn btn-outline"
                       style={{ fontSize: 11, padding: '4px 10px' }}
-                      disabled={alert.generatingSummary || !alert.transcript.trim()}
+                      disabled={alert.generatingSummary || alert.savingSummary || !alert.transcript.trim()}
                       onClick={() => { void handleGenerateSummary(alert); }}
                     >
-                      {alert.generatingSummary ? 'AI 요약 생성 중...' : 'AI로 요약'}
+                      {alert.generatingSummary
+                        ? 'AI 요약 생성 중...'
+                        : alert.summary?.trim()
+                          ? 'AI로 다시 요약'
+                          : 'AI로 요약'}
                     </button>
                     <button
                       type="button"
                       className="btn btn-primary"
                       style={{ fontSize: 11, padding: '4px 10px' }}
-                      disabled={alert.savingSummary}
+                      disabled={alert.savingSummary || alert.generatingSummary}
                       onClick={() => { void handleSaveSummary(alert); }}
                     >
-                      {alert.savingSummary ? '저장 중...' : '직접 입력 저장'}
+                      {alert.savingSummary
+                        ? '저장 중...'
+                        : alert.summary?.trim()
+                          ? '수정 저장'
+                          : '직접 입력 저장'}
                     </button>
                   </div>
                 </div>

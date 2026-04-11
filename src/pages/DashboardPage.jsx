@@ -8,6 +8,7 @@ import PinModal from '../components/PinModal';
 import { CURRICULUM_OPTIONS, DEFAULT_CURRICULUM } from '../constants/curriculum';
 
 const ALL_CLASSES = '전체 반';
+const PAGE_SIZE = 5;
 const todayStr = () => new Date().toISOString().slice(0, 10);
 
 function normalizeCurriculum(value) {
@@ -23,10 +24,11 @@ function normalizeResponse(dataArray) {
     curriculum: normalizeCurriculum(item.curriculum ?? item.curriculumName),
     classId: item.classId ?? '-',
     alertCount: item.alertCount ?? 0,
+    participantCount: item.participantCount ?? 0,
     avgConfusedScore: item.avgConfusedScore ?? 0,
-    topTopics: item.topTopics ?? [],
     recentAlerts: (item.recentAlerts ?? []).map((alert, index) => ({
       id: alert.id ?? `${item.classId}-${index}`,
+      capturedAt: alert.capturedAt ?? alert.createdAt ?? '',
       time: alert.capturedAt?.slice(11, 16) ?? alert.createdAt?.slice(11, 16) ?? '-',
       topic: alert.unclearTopic ?? '-',
       reason: alert.reason ?? '',
@@ -45,15 +47,13 @@ function buildDashboardView(items) {
     sessions: items.length,
     alerts: totalAlerts,
     avgConfusion: avgConfusedPct,
-    students: 0,
+    students: items.reduce((sum, item) => sum + (item.participantCount ?? 0), 0),
   };
 
   const barData = items.map((item) => ({
     name: item.classId,
     count: item.alertCount,
   }));
-
-  const unclearTopics = [...new Set(items.flatMap((item) => item.topTopics))];
 
   const alertHistory = items.flatMap((item) =>
     item.recentAlerts.map((alert) => ({
@@ -64,77 +64,59 @@ function buildDashboardView(items) {
 
   const lineData = alertHistory
     .slice()
-    .sort((a, b) => a.time.localeCompare(b.time))
+    .sort((a, b) => (a.capturedAt ?? '').localeCompare(b.capturedAt ?? ''))
     .map((item) => ({ time: item.time, confusion: item.confusion }));
 
-  return { kpi, barData, lineData, unclearTopics, alertHistory };
+  const latestAlertHistory = alertHistory
+    .slice()
+    .sort((a, b) => (b.capturedAt ?? '').localeCompare(a.capturedAt ?? ''));
+
+  return { kpi, barData, lineData, alertHistory: latestAlertHistory };
 }
 
-const MOCK_ITEMS = [
-  {
-    curriculum: '자격증반',
-    classId: '1반',
-    alertCount: 4,
-    avgConfusedScore: 0.54,
-    topTopics: ['트랜잭션 격리 수준', 'JVM 메모리', 'B+Tree'],
-    recentAlerts: [
-      { id: 1, time: '13:44', topic: 'JVM 메모리', reason: '불안 표정 다수', confusion: 52 },
-      { id: 2, time: '14:15', topic: '트랜잭션 격리 수준', reason: '시선이 자주 흔들림', confusion: 57 },
-    ],
-  },
-  {
-    curriculum: '자격증반',
-    classId: '2반',
-    alertCount: 3,
-    avgConfusedScore: 0.48,
-    topTopics: ['dirty read', '인덱스 구조'],
-    recentAlerts: [
-      { id: 3, time: '14:02', topic: 'dirty read 개념', reason: '집중도 저하 감지', confusion: 56 },
-    ],
-  },
-  {
-    curriculum: '웹개발반',
-    classId: '3반',
-    alertCount: 5,
-    avgConfusedScore: 0.63,
-    topTopics: ['비동기 처리', '상태 관리', '컴포넌트 생명주기'],
-    recentAlerts: [
-      { id: 4, time: '14:30', topic: '비동기 처리', reason: '표정 변화가 큼', confusion: 61 },
-      { id: 5, time: '15:00', topic: '상태 관리', reason: '시선 이탈 빈도 증가', confusion: 65 },
-    ],
-  },
-];
+function EllipsisCell({ value, accent = false }) {
+  return (
+    <td
+      title={value}
+      style={{
+        color: accent ? 'var(--text-primary)' : 'var(--text-secondary)',
+        fontWeight: accent ? 500 : 400,
+        maxWidth: 0,
+        whiteSpace: 'nowrap',
+        overflow: 'hidden',
+        textOverflow: 'ellipsis',
+      }}
+    >
+      {value || '-'}
+    </td>
+  );
+}
 
 export default function DashboardPage() {
   const [pinPassed, setPinPassed] = useState(false);
   const [date, setDate] = useState(todayStr());
-  const [items, setItems] = useState(MOCK_ITEMS);
+  const [items, setItems] = useState([]);
   const [selectedCurriculum, setSelectedCurriculum] = useState(DEFAULT_CURRICULUM);
   const [selectedClass, setSelectedClass] = useState(ALL_CLASSES);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [isMock, setIsMock] = useState(true);
+  const [currentPage, setCurrentPage] = useState(1);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
     setError('');
     try {
       const raw = await getDashboardClasses(date);
-      if (raw) {
-        const normalized = normalizeResponse(raw);
-        const nextItems = normalized.length ? normalized : MOCK_ITEMS;
-        setItems(nextItems);
-        setSelectedCurriculum(normalizeCurriculum(nextItems[0]?.curriculum));
-        setSelectedClass(ALL_CLASSES);
-        setIsMock(normalized.length === 0);
-      }
+      const normalized = normalizeResponse(raw);
+      setItems(normalized);
+      setSelectedCurriculum(normalizeCurriculum(normalized[0]?.curriculum));
+      setSelectedClass(ALL_CLASSES);
     } catch (e) {
-      setError(`서버 연결에 실패해 예시 데이터를 표시합니다. (${e.message})`);
-      setItems(MOCK_ITEMS);
+      setError(`서버 연결에 실패했습니다. (${e.message})`);
+      setItems([]);
       setSelectedCurriculum(DEFAULT_CURRICULUM);
       setSelectedClass(ALL_CLASSES);
-      setIsMock(true);
     } finally {
       setLoading(false);
     }
@@ -172,10 +154,20 @@ export default function DashboardPage() {
     ? curriculumItems
     : curriculumItems.filter((item) => item.classId === selectedClass);
 
-  const { kpi, barData, lineData, unclearTopics, alertHistory } = useMemo(
+  const { kpi, barData, lineData, alertHistory } = useMemo(
     () => buildDashboardView(visibleItems),
     [visibleItems],
   );
+
+  const totalPages = Math.max(1, Math.ceil(alertHistory.length / PAGE_SIZE));
+  const pagedAlertHistory = useMemo(
+    () => alertHistory.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE),
+    [alertHistory, currentPage],
+  );
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [date, selectedCurriculum, selectedClass, items]);
 
   if (!pinPassed) {
     return <PinModal onSuccess={() => setPinPassed(true)} />;
@@ -199,7 +191,6 @@ export default function DashboardPage() {
           <p>왼쪽 커리큘럼 목록은 세션 시작 콤보박스 값과 완전히 동일합니다.</p>
         </div>
         <div className="top-bar-right">
-          {isMock && <span className="badge badge-gray">예시 데이터</span>}
           <label style={{ fontSize: 13, color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: 8 }}>
             <span>기준일</span>
             <input
@@ -352,32 +343,22 @@ export default function DashboardPage() {
           </div>
 
           <div className="card">
-            <p className="card-title">자주 어려워한 내용</p>
-            <div>
-              {unclearTopics.map((tag) => <span className="tag" key={tag}>{tag}</span>)}
-              {unclearTopics.length === 0 && (
-                <span className="text-muted text-sm">표시할 내용이 없습니다.</span>
-              )}
-            </div>
-          </div>
-
-          <div className="card">
             <div className="section-divider" style={{ marginBottom: 14 }}>
               <h3>알림 이력</h3>
               <span className="text-muted text-sm">{alertHistory.length}건</span>
             </div>
-            <table className="data-table">
+            <table className="data-table" style={{ tableLayout: 'fixed', width: '100%' }}>
               <thead>
                 <tr>
-                  <th>시각</th>
-                  <th>반</th>
-                  <th>헷갈린 내용</th>
-                  <th>사유</th>
-                  <th style={{ textAlign: 'right' }}>혼란도</th>
+                  <th style={{ width: '12%' }}>시각</th>
+                  <th style={{ width: '12%' }}>반</th>
+                  <th style={{ width: '32%' }}>헷갈린 내용</th>
+                  <th style={{ width: '32%' }}>사유</th>
+                  <th style={{ width: '12%', textAlign: 'right' }}>혼란도</th>
                 </tr>
               </thead>
               <tbody>
-                {alertHistory.map((alert) => (
+                {pagedAlertHistory.map((alert) => (
                   <tr key={alert.id}>
                     <td>{alert.time}</td>
                     <td>
@@ -385,8 +366,8 @@ export default function DashboardPage() {
                         {alert.classTag}
                       </span>
                     </td>
-                    <td style={{ fontWeight: 500 }}>{alert.topic}</td>
-                    <td style={{ color: 'var(--text-secondary)' }}>{alert.reason}</td>
+                    <EllipsisCell value={alert.topic} accent />
+                    <EllipsisCell value={alert.reason} />
                     <td style={{ textAlign: 'right' }}>
                       <span className="text-red" style={{ fontWeight: 600 }}>{alert.confusion}%</span>
                     </td>
@@ -401,6 +382,39 @@ export default function DashboardPage() {
                 )}
               </tbody>
             </table>
+            {alertHistory.length > 0 && (
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'flex-end',
+                  alignItems: 'center',
+                  gap: 8,
+                  marginTop: 14,
+                }}
+              >
+                <button
+                  type="button"
+                  className="btn btn-outline"
+                  style={{ fontSize: 12, padding: '4px 10px' }}
+                  disabled={currentPage === 1}
+                  onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
+                >
+                  이전
+                </button>
+                <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
+                  {currentPage} / {totalPages}
+                </span>
+                <button
+                  type="button"
+                  className="btn btn-outline"
+                  style={{ fontSize: 12, padding: '4px 10px' }}
+                  disabled={currentPage === totalPages}
+                  onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}
+                >
+                  다음
+                </button>
+              </div>
+            )}
           </div>
         </main>
       </div>
