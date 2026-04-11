@@ -117,8 +117,18 @@ export default function InstructorPage() {
     }
 
     const audioText = transcript.trim();
+    console.info('[InstructorPage] STT transcript result', {
+      sessionId: candidate.sessionId ?? session.id,
+      candidateCapturedAt: candidate.capturedAt ?? null,
+      transcriptLength: audioText.length,
+      transcript: audioText,
+    });
 
     if (!audioText) {
+      console.warn('[InstructorPage] alert save skipped because transcript is empty', {
+        sessionId: candidate.sessionId ?? session.id,
+        candidateCapturedAt: candidate.capturedAt ?? null,
+      });
       activeCandidateRef.current = null;
       processNextCandidateRef.current();
       return;
@@ -146,7 +156,6 @@ export default function InstructorPage() {
       });
     } catch (error) {
       console.warn('candidate finalize error:', error.message);
-      setSessionError('알림 생성에 실패했습니다.');
     } finally {
       activeCandidateRef.current = null;
       processNextCandidateRef.current();
@@ -456,8 +465,9 @@ export default function InstructorPage() {
               <div
                 style={{
                   display: 'flex',
-                  alignItems: 'center',
-                  gap: 8,
+                  flexDirection: 'column',
+                  alignItems: 'flex-start',
+                  gap: 6,
                   padding: '6px 10px',
                   background: '#f0fdf4',
                   borderRadius: 6,
@@ -465,8 +475,23 @@ export default function InstructorPage() {
                   color: '#166534',
                 }}
               >
-                <span className="dot dot-green" style={{ flexShrink: 0 }} />
-                현재 학생 이벤트에 대한 전사를 녹음 중입니다...
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span className="dot dot-green" style={{ flexShrink: 0 }} />
+                  현재 학생 이벤트에 대한 전사를 녹음 중입니다...
+                </div>
+                <div
+                  style={{
+                    width: '100%',
+                    fontSize: 11,
+                    color: '#15803d',
+                    whiteSpace: 'nowrap',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                  }}
+                  title={stt.liveTranscript || ''}
+                >
+                  {stt.liveTranscript || '실시간 전사 내용이 아직 없습니다.'}
+                </div>
               </div>
             )}
             {!stt.supported && (

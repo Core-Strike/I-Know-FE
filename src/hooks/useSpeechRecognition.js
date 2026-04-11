@@ -14,7 +14,9 @@ export function useSpeechRecognition() {
   const transcriptRef  = useRef('');
   const timerRef       = useRef(null);
   const callbackRef    = useRef(null);
+  const recordingRef   = useRef(false);
   const [recording, setRecording] = useState(false);
+  const [liveTranscript, setLiveTranscript] = useState('');
   const [supported]  = useState(() =>
     typeof window !== 'undefined' &&
     !!(window.SpeechRecognition || window.webkitSpeechRecognition)
@@ -24,7 +26,9 @@ export function useSpeechRecognition() {
     clearTimeout(timerRef.current);
     try { recognitionRef.current?.stop(); } catch {}
     recognitionRef.current = null;
+    recordingRef.current = false;
     setRecording(false);
+    setLiveTranscript('');
   }, []);
 
   const startRecording = useCallback((onComplete) => {
@@ -43,18 +47,23 @@ export function useSpeechRecognition() {
     const recognition = new SR();
     recognition.lang = 'ko-KR';
     recognition.continuous = true;
-    recognition.interimResults = false;
+    recognition.interimResults = true;
 
     transcriptRef.current = '';
     callbackRef.current = onComplete;
     recognitionRef.current = recognition;
+    setLiveTranscript('');
 
     recognition.onresult = (e) => {
+      let interimTranscript = '';
       for (let i = e.resultIndex; i < e.results.length; i++) {
         if (e.results[i].isFinal) {
           transcriptRef.current += e.results[i][0].transcript + ' ';
+        } else {
+          interimTranscript += e.results[i][0].transcript;
         }
       }
+      setLiveTranscript(`${transcriptRef.current} ${interimTranscript}`.trim());
     };
 
     recognition.onerror = (e) => {
@@ -67,12 +76,13 @@ export function useSpeechRecognition() {
 
     recognition.onend = () => {
       // continuous mode에서 중단됐을 때 재시작 (2분 타이머가 살아있는 동안만)
-      if (recognitionRef.current === recognition && recording) {
+      if (recognitionRef.current === recognition && recordingRef.current) {
         try { recognition.start(); } catch {}
       }
     };
 
     recognition.start();
+    recordingRef.current = true;
     setRecording(true);
 
     // 2분 후 자동 종료 및 콜백
@@ -81,12 +91,12 @@ export function useSpeechRecognition() {
       stopRecording();
       callbackRef.current?.(finalTranscript);
     }, RECORD_DURATION_MS);
-  }, [supported, stopRecording, recording]);
+  }, [supported, stopRecording]);
 
   useEffect(() => () => {
     clearTimeout(timerRef.current);
     try { recognitionRef.current?.stop(); } catch {}
   }, []);
 
-  return { supported, recording, startRecording, stopRecording };
+  return { supported, recording, liveTranscript, startRecording, stopRecording };
 }
