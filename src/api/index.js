@@ -73,6 +73,12 @@ export const getConfusedEvents = (id) =>
 export const getDashboardClasses = (date) =>
   http.get('/api/dashboard/classes', { params: { date } }).then((r) => r.data);
 
+export const getDashboardAiCoachingData = ({ date, curriculum, classId }) =>
+  http.post('/api/dashboard/ai-coaching-data', { date, curriculum, classId }).then((r) => r.data);
+
+export const requestDashboardAiCoaching = (data) =>
+  ai.post('/coaching', data).then((r) => r.data);
+
 export const getCurriculums = () =>
   http.get('/api/curriculums').then((r) => r.data);
 

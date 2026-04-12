@@ -6,9 +6,11 @@ import {
 import {
   createCurriculum,
   deleteCurriculum,
+  getDashboardAiCoachingData,
   getCurriculums,
   getDashboardClasses,
   getKeywordReport,
+  requestDashboardAiCoaching,
 } from '../api';
 import CurriculumManagerModal from '../components/CurriculumManagerModal';
 import KeywordCloudPanel from '../components/KeywordCloudPanel';
@@ -376,6 +378,170 @@ function KeywordReportModal({ keyword, report, loading, error, onClose }) {
   );
 }
 
+function AiCoachingModal({ open, loading, error, coaching, onClose }) {
+  if (!open) {
+    return null;
+  }
+
+  return (
+    <div
+      style={{
+        position: 'fixed',
+        inset: 0,
+        background: 'rgba(0,0,0,0.45)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: 24,
+        zIndex: 1300,
+      }}
+      onClick={onClose}
+    >
+      <div
+        className="card"
+        style={{
+          width: 'min(760px, 100%)',
+          maxHeight: 'min(760px, calc(100vh - 48px))',
+          padding: 0,
+          display: 'flex',
+          flexDirection: 'column',
+        }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div
+          style={{
+            padding: '20px 22px 16px',
+            borderBottom: '1px solid var(--border)',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'flex-start',
+            gap: 16,
+          }}
+        >
+          <div>
+            <h3 style={{ fontSize: 18, fontWeight: 700, marginBottom: 6 }}>AI 코칭 리포트</h3>
+            <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
+              대시보드 데이터를 바탕으로 바로 실행할 수 있는 코칭을 제안합니다.
+            </div>
+          </div>
+          <button type="button" className="btn btn-outline" onClick={onClose}>
+            닫기
+          </button>
+        </div>
+
+        <div style={{ padding: 22, overflowY: 'auto', minHeight: 0 }}>
+          {loading && (
+            <div style={{ display: 'grid', gap: 12 }}>
+              {['최근 알림 분석 중', '주요 키워드 정리 중', '코칭 제안 생성 중'].map((label) => (
+                <div
+                  key={label}
+                  style={{
+                    padding: '14px 16px',
+                    borderRadius: 12,
+                    background: '#f8fbff',
+                    border: '1px solid #dbe4f0',
+                    fontSize: 14,
+                    color: '#0f172a',
+                  }}
+                >
+                  {label}...
+                </div>
+              ))}
+            </div>
+          )}
+
+          {!loading && error && (
+            <div style={{ fontSize: 13, color: '#b91c1c', lineHeight: 1.6 }}>
+              {error}
+            </div>
+          )}
+
+          {!loading && !error && coaching && (
+            <>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
+                <span className={`badge ${coaching.priorityLevel === '높음' ? 'badge-red' : coaching.priorityLevel === '보통' ? 'badge-orange' : 'badge-green'}`}>
+                  우선순위 {coaching.priorityLevel || '보통'}
+                </span>
+              </div>
+
+              <div style={{ marginBottom: 18 }}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', marginBottom: 8 }}>한 줄 진단</div>
+                <div
+                  style={{
+                    background: '#fafaf7',
+                    border: '1px solid var(--border)',
+                    borderRadius: 10,
+                    padding: '14px 16px',
+                    lineHeight: 1.7,
+                    whiteSpace: 'pre-wrap',
+                  }}
+                >
+                  {coaching.summary || '-'}
+                </div>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 14, marginBottom: 18 }}>
+                <div style={{ border: '1px solid #e5e7eb', borderRadius: 12, padding: 16 }}>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', marginBottom: 10 }}>보충 설명 추천 주제</div>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                    {(coaching.reExplainTopics ?? []).map((item) => (
+                      <span key={item} className="badge badge-green">{item}</span>
+                    ))}
+                  </div>
+                </div>
+                <div style={{ border: '1px solid #e5e7eb', borderRadius: 12, padding: 16 }}>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', marginBottom: 10 }}>학생 신호 해석</div>
+                  <div style={{ display: 'grid', gap: 8 }}>
+                    {(coaching.studentSignals ?? []).map((item) => (
+                      <div key={item} style={{ fontSize: 13, lineHeight: 1.6 }}>{item}</div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              <div style={{ marginBottom: 18 }}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', marginBottom: 8 }}>지금 바로 할 행동</div>
+                <div
+                  style={{
+                    background: '#eff6ff',
+                    border: '1px solid #bfdbfe',
+                    borderRadius: 10,
+                    padding: '14px 16px',
+                    fontSize: 14,
+                    color: '#1e3a8a',
+                    lineHeight: 1.7,
+                  }}
+                >
+                  {coaching.recommendedActionNow || '-'}
+                </div>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 14 }}>
+                <div style={{ border: '1px solid #e5e7eb', borderRadius: 12, padding: 16 }}>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', marginBottom: 10 }}>코칭 팁</div>
+                  <div style={{ display: 'grid', gap: 8 }}>
+                    {(coaching.coachingTips ?? []).map((item) => (
+                      <div key={item} style={{ fontSize: 13, lineHeight: 1.6 }}>{item}</div>
+                    ))}
+                  </div>
+                </div>
+                <div style={{ border: '1px solid #e5e7eb', borderRadius: 12, padding: 16 }}>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', marginBottom: 10 }}>바로 써볼 멘트</div>
+                  <div style={{ display: 'grid', gap: 8 }}>
+                    {(coaching.sampleMentions ?? []).map((item) => (
+                      <div key={item} style={{ fontSize: 13, lineHeight: 1.6 }}>{item}</div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function DashboardPage() {
   const [pinPassed, setPinPassed] = useState(false);
   const [date, setDate] = useState(getSeoulDate());
@@ -395,6 +561,10 @@ export default function DashboardPage() {
   const [showCurriculumModal, setShowCurriculumModal] = useState(false);
   const [curriculumLoading, setCurriculumLoading] = useState(false);
   const [curriculumError, setCurriculumError] = useState('');
+  const [showAiCoachingModal, setShowAiCoachingModal] = useState(false);
+  const [aiCoachingLoading, setAiCoachingLoading] = useState(false);
+  const [aiCoachingError, setAiCoachingError] = useState('');
+  const [aiCoaching, setAiCoaching] = useState(null);
 
   const loadCurriculums = useCallback(async () => {
     setCurriculumLoading(true);
@@ -507,6 +677,27 @@ export default function DashboardPage() {
     await fetchData();
   }, [fetchData, loadCurriculums]);
 
+  const handleOpenAiCoaching = useCallback(async () => {
+    setShowAiCoachingModal(true);
+    setAiCoachingLoading(true);
+    setAiCoachingError('');
+    setAiCoaching(null);
+
+    try {
+      const dashboardData = await getDashboardAiCoachingData({
+        date,
+        curriculum: selectedCurriculum,
+        classId: selectedClass === ALL_CLASSES ? '' : selectedClass,
+      });
+      const coaching = await requestDashboardAiCoaching(dashboardData);
+      setAiCoaching(coaching);
+    } catch (fetchError) {
+      setAiCoachingError(`AI 코칭 결과를 불러오지 못했습니다. (${fetchError.message})`);
+    } finally {
+      setAiCoachingLoading(false);
+    }
+  }, [date, selectedClass, selectedCurriculum]);
+
   if (!pinPassed) {
     return <PinModal onSuccess={() => setPinPassed(true)} />;
   }
@@ -533,6 +724,16 @@ export default function DashboardPage() {
         onCreate={handleCreateCurriculum}
         onDelete={handleDeleteCurriculum}
         onClose={() => setShowCurriculumModal(false)}
+      />
+      <AiCoachingModal
+        open={showAiCoachingModal}
+        loading={aiCoachingLoading}
+        error={aiCoachingError}
+        coaching={aiCoaching}
+        onClose={() => {
+          setShowAiCoachingModal(false);
+          setAiCoachingError('');
+        }}
       />
 
       <div className="top-bar">
@@ -567,6 +768,13 @@ export default function DashboardPage() {
               }}
             />
           </label>
+          <button
+            className="btn btn-primary"
+            style={{ fontSize: 12 }}
+            onClick={() => { void handleOpenAiCoaching(); }}
+          >
+            AI 코칭
+          </button>
           <button
             className="btn btn-outline"
             style={{ fontSize: 12 }}
