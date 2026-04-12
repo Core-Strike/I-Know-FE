@@ -6,6 +6,7 @@ import {
   createSession,
   deleteAlert,
   endSession,
+  endSessionOnUnload,
   getSessionAlerts,
   postLectureSummary,
   saveLectureSummary,
@@ -86,6 +87,9 @@ export default function InstructorPage() {
   const candidateQueueRef = useRef([]);
   const activeCandidateRef = useRef(null);
   const alertsRef = useRef([]);
+  const sessionRef = useRef(null);
+  const sessionActiveRef = useRef(false);
+  const sessionTerminatedRef = useRef(false);
 
   const handleSilenceWarning = useCallback(() => setShowSilenceToast(true), []);
 
@@ -115,6 +119,14 @@ export default function InstructorPage() {
   useEffect(() => {
     alertsRef.current = alerts;
   }, [alerts]);
+
+  useEffect(() => {
+    sessionRef.current = session;
+  }, [session]);
+
+  useEffect(() => {
+    sessionActiveRef.current = sessionActive;
+  }, [sessionActive]);
 
   const processNextCandidateRef = useRef(() => {});
 
@@ -249,6 +261,7 @@ export default function InstructorPage() {
 
     candidateQueueRef.current = [];
     activeCandidateRef.current = null;
+    sessionTerminatedRef.current = false;
     setSession(nextSession);
     setSessionActive(true);
     setAlerts([]);
@@ -267,12 +280,33 @@ export default function InstructorPage() {
 
     candidateQueueRef.current = [];
     activeCandidateRef.current = null;
+    sessionTerminatedRef.current = true;
     setSessionActive(false);
     setSession(null);
     setAlerts([]);
     mic.stop();
     stt.stopRecording();
   }, [mic, session, stt]);
+
+  useEffect(() => {
+    const terminateOnPageExit = () => {
+      const currentSession = sessionRef.current;
+      if (!sessionActiveRef.current || !currentSession || sessionTerminatedRef.current) {
+        return;
+      }
+
+      sessionTerminatedRef.current = true;
+      endSessionOnUnload(currentSession.id);
+    };
+
+    window.addEventListener('pagehide', terminateOnPageExit);
+    window.addEventListener('beforeunload', terminateOnPageExit);
+
+    return () => {
+      window.removeEventListener('pagehide', terminateOnPageExit);
+      window.removeEventListener('beforeunload', terminateOnPageExit);
+    };
+  }, []);
 
   const handleCopyId = useCallback(() => {
     if (!session) {
