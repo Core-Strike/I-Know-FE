@@ -6,10 +6,11 @@ import {
 import { getDashboardClasses } from '../api';
 import PinModal from '../components/PinModal';
 import { CURRICULUM_OPTIONS, DEFAULT_CURRICULUM } from '../constants/curriculum';
+import { formatSeoulClock, getSeoulDate } from '../utils/seoulTime';
 
 const ALL_CLASSES = '전체 반';
 const PAGE_SIZE = 5;
-const todayStr = () => new Date().toISOString().slice(0, 10);
+const todayStr = () => getSeoulDate();
 
 function normalizeCurriculum(value) {
   return CURRICULUM_OPTIONS.includes(value) ? value : DEFAULT_CURRICULUM;
@@ -29,9 +30,10 @@ function normalizeResponse(dataArray) {
     recentAlerts: (item.recentAlerts ?? []).map((alert, index) => ({
       id: alert.id ?? `${item.classId}-${index}`,
       capturedAt: alert.capturedAt ?? alert.createdAt ?? '',
-      time: alert.capturedAt?.slice(11, 16) ?? alert.createdAt?.slice(11, 16) ?? '-',
+      time: formatSeoulClock(alert.capturedAt ?? alert.createdAt, false),
       topic: alert.lectureSummary ?? alert.unclearTopic ?? '-',
       reason: alert.reason ?? '',
+      keywords: Array.isArray(alert.keywords) ? alert.keywords : [],
       confusion: alert.totalStudentCount > 0
         ? Math.round(((alert.studentCount ?? 0) / alert.totalStudentCount) * 100)
         : Math.round((alert.confusedScore ?? 0) * 100),
@@ -74,7 +76,39 @@ function buildDashboardView(items) {
     .slice()
     .sort((a, b) => (b.capturedAt ?? '').localeCompare(a.capturedAt ?? ''));
 
-  return { kpi, barData, lineData, alertHistory: latestAlertHistory };
+  const keywordCounts = alertHistory
+    .flatMap((alert) => alert.keywords ?? [])
+    .filter(Boolean)
+    .reduce((acc, keyword) => {
+      acc.set(keyword, (acc.get(keyword) ?? 0) + 1);
+      return acc;
+    }, new Map());
+
+  const keywordCloud = Array.from(keywordCounts.entries())
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+    .slice(0, 24)
+    .map(([keyword, count]) => ({ keyword, count }));
+
+  return { kpi, barData, lineData, alertHistory: latestAlertHistory, keywordCloud };
+}
+
+function keywordStyle(count, maxCount) {
+  const ratio = maxCount > 0 ? count / maxCount : 0;
+  const fontSize = 14 + Math.round(ratio * 18);
+  const opacity = 0.55 + ratio * 0.45;
+  const bg = ratio > 0.66 ? '#dbeafe' : ratio > 0.33 ? '#eff6ff' : '#f8fafc';
+
+  return {
+    fontSize,
+    opacity,
+    background: bg,
+    color: '#1e3a8a',
+    padding: '6px 12px',
+    borderRadius: 999,
+    border: '1px solid #bfdbfe',
+    fontWeight: ratio > 0.66 ? 700 : 600,
+    lineHeight: 1.2,
+  };
 }
 
 function EllipsisCell({ value, accent = false }) {
@@ -156,6 +190,17 @@ function AlertDetailModal({ alert, onClose }) {
             <div style={{ color: 'var(--text-secondary)' }}>이해 어려움 정도</div>
             <div>{alert.confusion}%</div>
           </div>
+
+          {alert.keywords?.length > 0 && (
+            <div style={{ marginBottom: 18 }}>
+              <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 8, color: 'var(--text-secondary)' }}>주요 키워드</div>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                {alert.keywords.map((keyword) => (
+                  <span key={keyword} className="badge badge-green">{keyword}</span>
+                ))}
+              </div>
+            </div>
+          )}
 
           <div style={{ marginBottom: 18 }}>
             <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 8, color: 'var(--text-secondary)' }}>헷갈린 내용</div>
@@ -259,11 +304,12 @@ export default function DashboardPage() {
     ? curriculumItems
     : curriculumItems.filter((item) => item.classId === selectedClass);
 
-  const { kpi, barData, lineData, alertHistory } = useMemo(
+  const { kpi, barData, lineData, alertHistory, keywordCloud } = useMemo(
     () => buildDashboardView(visibleItems),
     [visibleItems],
   );
 
+  const maxKeywordCount = keywordCloud[0]?.count ?? 0;
   const totalPages = Math.max(1, Math.ceil(alertHistory.length / PAGE_SIZE));
   const pagedAlertHistory = useMemo(
     () => alertHistory.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE),
@@ -296,7 +342,7 @@ export default function DashboardPage() {
             </button>
             <h2>대시보드</h2>
           </div>
-          <p>좌측 커리큘럼과 반을 선택해 알림 흐름을 확인할 수 있습니다.</p>
+          <p>커리큘럼과 반을 선택해 알림 추이와 주요 키워드를 확인할 수 있습니다.</p>
         </div>
         <div className="top-bar-right">
           <label style={{ fontSize: 13, color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -448,6 +494,30 @@ export default function DashboardPage() {
                 빨간 점선은 기준값 50%를 뜻합니다.
               </div>
             </div>
+          </div>
+
+          <div className="card">
+            <div className="section-divider" style={{ marginBottom: 14 }}>
+              <div>
+                <h3>주요 키워드 워드 클라우드</h3>
+                <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 2 }}>
+                  많이 등장한 키워드일수록 더 크게 표시됩니다.
+                </div>
+              </div>
+            </div>
+            {keywordCloud.length > 0 ? (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'center' }}>
+                {keywordCloud.map(({ keyword, count }) => (
+                  <span key={keyword} style={keywordStyle(count, maxKeywordCount)}>
+                    {keyword}
+                  </span>
+                ))}
+              </div>
+            ) : (
+              <div style={{ color: 'var(--text-secondary)', fontSize: 13 }}>
+                아직 표시할 주요 키워드가 없습니다.
+              </div>
+            )}
           </div>
 
           <div className="card">

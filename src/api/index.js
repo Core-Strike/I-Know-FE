@@ -67,13 +67,14 @@ export const postLectureSummary = async ({ alertId, audioText }) => {
   const aiRes = await ai.post('/summarize', { audioText }).then((r) => r.data);
   const summary = aiRes.summary ?? '';
   const recommendedConcept = aiRes.recommendedConcept ?? '';
+  const keywords = Array.isArray(aiRes.keywords) ? aiRes.keywords : [];
 
-  await http.post('/api/lecture-summary', { alertId, summary, recommendedConcept });
-  return { summary, recommendedConcept };
+  await http.post('/api/lecture-summary', { alertId, summary, recommendedConcept, keywords });
+  return { summary, recommendedConcept, keywords };
 };
 
-export const saveLectureSummary = ({ alertId, summary, recommendedConcept }) =>
-  http.post('/api/lecture-summary', { alertId, summary, recommendedConcept }).then((r) => r.data);
+export const saveLectureSummary = ({ alertId, summary, recommendedConcept, keywords = [] }) =>
+  http.post('/api/lecture-summary', { alertId, summary, recommendedConcept, keywords }).then((r) => r.data);
 
 export const getLectureSummary = (alertId) =>
   http.get(`/api/alerts/${alertId}/summary`).then((r) => r.data);

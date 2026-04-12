@@ -14,6 +14,7 @@ import {
 } from '../api';
 import PinModal from '../components/PinModal';
 import SessionSettingsModal from '../components/SessionSettingsModal';
+import { formatSeoulClock, getSeoulDateTime, getSeoulTime } from '../utils/seoulTime';
 
 function normalizeAlert(raw, fallback = {}) {
   return {
@@ -22,13 +23,14 @@ function normalizeAlert(raw, fallback = {}) {
     classId: raw.classId ?? fallback.classId ?? '-',
     studentCount: raw.studentCount ?? fallback.studentCount ?? 1,
     totalStudentCount: raw.totalStudentCount ?? fallback.totalStudentCount ?? 1,
-    time: raw.capturedAt?.slice(11, 19) ?? raw.createdAt?.slice(11, 19) ?? '-',
+    time: formatSeoulClock(raw.capturedAt ?? raw.createdAt),
     confusedScore: raw.confusedScore ?? 0,
     reason: raw.reason ?? '',
     unclearTopic: raw.unclearTopic ?? raw.lectureText ?? '(전사 내용 없음)',
     transcript: raw.lectureText ?? '',
     summary: raw.lectureSummary ?? '',
     summaryDraft: raw.lectureSummary ?? '',
+    keywords: raw.keywords ?? [],
     generatingSummary: false,
     savingSummary: false,
   };
@@ -159,7 +161,7 @@ export default function InstructorPage() {
         classId: candidate.classId ?? session.classId,
         studentCount: candidate.studentCount ?? 1,
         totalStudentCount: candidate.totalStudentCount ?? 1,
-        capturedAt: candidate.capturedAt ?? new Date().toISOString().slice(0, 19),
+        capturedAt: candidate.capturedAt ?? getSeoulDateTime(),
         audioText,
         confusedScore: candidate.confusedScore ?? 0,
         reason: candidate.reason ?? '',
@@ -176,7 +178,27 @@ export default function InstructorPage() {
         transcript: audioText,
         unclearTopic: audioText,
         summaryDraft: normalized.summaryDraft || '',
+        generatingSummary: true,
       });
+
+      try {
+        const result = await postLectureSummary({
+          alertId: normalized.id,
+          audioText,
+        });
+
+        updateAlert(normalized.id, {
+          summary: result.summary ?? '',
+          summaryDraft: result.summary ?? '',
+          reason: result.recommendedConcept ?? normalized.reason ?? '',
+          keywords: result.keywords ?? [],
+          generatingSummary: false,
+        });
+      } catch (summaryError) {
+        console.warn('summary generation failed:', summaryError.message);
+        updateAlert(normalized.id, { generatingSummary: false });
+        setSessionError('AI 요약 생성에 실패했습니다.');
+      }
     } catch (error) {
       console.warn('candidate finalize error:', error.message);
     } finally {
@@ -243,17 +265,16 @@ export default function InstructorPage() {
       nextSession = {
         id: data.sessionId ?? data.id,
         classId: data.classId ?? classId,
-        startedAt: data.startedAt?.slice(11, 16) ?? new Date().toTimeString().slice(0, 5),
+        startedAt: data.startedAt ? formatSeoulClock(data.startedAt, false) : getSeoulTime(),
         thresholdPct: data.thresholdPct ?? thresholdPct,
         curriculum: data.curriculum ?? curriculum,
       };
     } catch (error) {
       console.warn('session create failed, using local fallback:', error.message);
-      const now = new Date();
       nextSession = {
         id: String(Math.floor(100000 + Math.random() * 900000)),
         classId,
-        startedAt: `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`,
+        startedAt: getSeoulTime(),
         thresholdPct,
         curriculum,
       };
@@ -332,34 +353,6 @@ export default function InstructorPage() {
     updateAlert(alertId, { summaryDraft });
   }, [updateAlert]);
 
-  const handleGenerateSummary = useCallback(async (alert) => {
-    const transcript = alert.transcript.trim();
-    if (!transcript) {
-      setSessionError('전사 내용이 없으면 AI 요약을 만들 수 없습니다.');
-      return;
-    }
-
-    updateAlert(alert.id, { generatingSummary: true });
-
-    try {
-      const result = await postLectureSummary({
-        alertId: alert.id,
-        audioText: transcript,
-      });
-
-      updateAlert(alert.id, {
-        summary: result.summary ?? '',
-        summaryDraft: result.summary ?? '',
-        reason: result.recommendedConcept ?? alert.reason,
-        generatingSummary: false,
-      });
-    } catch (error) {
-      console.warn('summary generation failed:', error.message);
-      updateAlert(alert.id, { generatingSummary: false });
-      setSessionError('AI 요약 생성에 실패했습니다.');
-    }
-  }, [updateAlert]);
-
   const handleSaveSummary = useCallback(async (alertId) => {
     const currentAlert = alertsRef.current.find((item) => item.id === alertId);
     if (!currentAlert) {
@@ -373,12 +366,14 @@ export default function InstructorPage() {
         alertId,
         summary: currentAlert.summaryDraft ?? '',
         recommendedConcept: currentAlert.reason ?? '',
+        keywords: currentAlert.keywords ?? [],
       });
 
       updateAlert(alertId, {
         summary: saved?.lectureSummary ?? currentAlert.summaryDraft ?? '',
         summaryDraft: saved?.lectureSummary ?? currentAlert.summaryDraft ?? '',
         reason: saved?.reason ?? currentAlert.reason ?? '',
+        keywords: saved?.keywords ?? currentAlert.keywords ?? [],
         savingSummary: false,
       });
     } catch (error) {
@@ -425,7 +420,7 @@ export default function InstructorPage() {
             <span className="badge badge-green"><span className="dot dot-green" />연결됨</span>
           )}
           {sessionActive && !connected && (
-            <span className="badge badge-orange"><span className="dot dot-gray" />연결 대기 중</span>
+            <span className="badge badge-orange"><span className="dot dot-gray" />연결 중...</span>
           )}
           <button className="btn btn-primary" onClick={() => setShowSettings(true)} disabled={sessionActive}>
             수업 시작
@@ -653,7 +648,7 @@ export default function InstructorPage() {
                   fontWeight: 600,
                 }}
               >
-                넘기기
+                  기록 삭제
               </button>
 
               <div className="alert-card-title">접수된 알림</div>
@@ -695,19 +690,6 @@ export default function InstructorPage() {
                   <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                     <button
                       type="button"
-                      className="btn btn-outline"
-                      style={{ fontSize: 11, padding: '4px 10px' }}
-                      disabled={alert.generatingSummary || alert.savingSummary || !alert.transcript.trim()}
-                      onClick={() => { void handleGenerateSummary(alert); }}
-                    >
-                      {alert.generatingSummary
-                        ? 'AI 요약 생성 중...'
-                        : alert.summary?.trim()
-                          ? 'AI로 다시 요약'
-                          : 'AI로 요약'}
-                    </button>
-                    <button
-                      type="button"
                       className="btn btn-primary"
                       style={{ fontSize: 11, padding: '4px 10px' }}
                       disabled={alert.savingSummary || alert.generatingSummary}
@@ -721,10 +703,15 @@ export default function InstructorPage() {
                     </button>
                   </div>
                 </div>
+                {alert.generatingSummary && (
+                  <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginBottom: 8 }}>
+                    AI 요약을 자동으로 생성하고 있습니다...
+                  </div>
+                )}
                 <textarea
                   value={alert.summaryDraft}
                   onChange={(e) => handleSummaryDraftChange(alert.id, e.target.value)}
-                  placeholder="요약을 직접 입력하거나 AI 요약을 생성해 보세요."
+                  placeholder="요약을 직접 수정할 수 있습니다."
                   rows={5}
                   style={{
                     width: '100%',

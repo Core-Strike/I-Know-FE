@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useWebcam } from '../hooks/useWebcam';
 import { analyzeFrame, getSession, postConfusedEvent } from '../api';
+import { formatSeoulClock, getSeoulDateTime } from '../utils/seoulTime';
 
 const CONFUSED_STREAK_NEEDED = 3;
 const EMOTION_LABELS = {
@@ -73,7 +74,7 @@ export default function StudentPage() {
           streakRef.current += 1;
           setConfusedStreak(streakRef.current);
           if (streakRef.current >= CONFUSED_STREAK_NEEDED && !cooldown) {
-            const now = new Date().toISOString().slice(0, 19);
+            const now = getSeoulDateTime();
             await postConfusedEvent({
               studentId,
               sessionId,
@@ -120,11 +121,7 @@ export default function StudentPage() {
     setSearchParams(nextParams, { replace: true });
   }, [searchParams, setSearchParams, studentId]);
 
-  const fmtTime = (iso) => {
-    if (!iso) return '-';
-    const d = new Date(iso);
-    return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}:${String(d.getSeconds()).padStart(2, '0')}`;
-  };
+  const fmtTime = (iso) => formatSeoulClock(iso);
 
   const threshold = 0.45;
   const { confidence, emotion, gpt_reason, face_features } = analysisResult;
