@@ -4,6 +4,10 @@ import { useNavigate } from 'react-router-dom';
 const createRandomStudentName = () =>
   String(Math.floor(100000000 + Math.random() * 900000000));
 
+// 수업 ID 허용 문자: 숫자 + 대문자 알파벳, 8자리
+const SESSION_ID_REGEX = /^[A-Z0-9]{8}$/;
+const SESSION_ID_SANITIZE = (v) => v.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 8);
+
 export default function HomePage() {
   const [sessionId, setSessionId] = useState('');
   const [name, setName]           = useState('');
@@ -20,8 +24,8 @@ export default function HomePage() {
       setError('수업 ID를 입력해 주세요.');
       return;
     }
-    if (!/^\d{6}$/.test(trimmedId)) {
-      setError('수업 ID는 6자리 숫자여야 합니다.');
+    if (!SESSION_ID_REGEX.test(trimmedId)) {
+      setError('수업 ID는 숫자·대문자 알파벳 8자리여야 합니다.');
       return;
     }
 
@@ -29,7 +33,8 @@ export default function HomePage() {
   };
 
   const handleSessionIdChange = (e) => {
-    const val = e.target.value.replace(/\D/g, '').slice(0, 6);
+    // 소문자 → 대문자 자동 변환, 숫자+대문자만 허용, 최대 8자
+    const val = SESSION_ID_SANITIZE(e.target.value);
     setSessionId(val);
     setError('');
   };
@@ -60,10 +65,10 @@ export default function HomePage() {
           <input
             type="text"
             inputMode="numeric"
-            placeholder="수업 ID (6자리 숫자)"
+            placeholder="수업 ID (8자리, 예: AB12CD34)"
             value={sessionId}
             onChange={handleSessionIdChange}
-            maxLength={6}
+            maxLength={8}
             style={{
               width: '100%',
               padding: '10px 14px',

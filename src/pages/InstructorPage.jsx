@@ -339,7 +339,7 @@ export default function InstructorPage() {
     } catch (error) {
       console.warn('session create failed, using local fallback:', error.message);
       nextSession = {
-        id: String(Math.floor(100000 + Math.random() * 900000)),
+        id: Array.from({ length: 8 }, () => 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'[Math.floor(Math.random() * 36)]).join(''),
         classId,
         startedAt: getSeoulTime(),
         thresholdPct,
