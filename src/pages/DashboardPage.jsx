@@ -209,6 +209,13 @@ function AlertDetailModal({ alert, onClose }) {
                   <span key={keyword} className="badge badge-green">{keyword}</span>
                 ))}
               </div>
+              <button
+                className="btn btn-primary"
+                style={{ fontSize: 12 }}
+                onClick={() => { void handleOpenAiCoaching(); }}
+              >
+                AI 코칭
+              </button>
             </div>
           )}
 
@@ -772,6 +779,7 @@ export default function DashboardPage() {
             className="btn btn-primary"
             style={{ fontSize: 12 }}
             onClick={() => { void handleOpenAiCoaching(); }}
+            hidden
           >
             AI 코칭
           </button>
