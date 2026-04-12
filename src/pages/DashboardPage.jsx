@@ -776,14 +776,6 @@ export default function DashboardPage() {
             />
           </label>
           <button
-            className="btn btn-primary"
-            style={{ fontSize: 12 }}
-            onClick={() => { void handleOpenAiCoaching(); }}
-            hidden
-          >
-            AI 코칭
-          </button>
-          <button
             className="btn btn-outline"
             style={{ fontSize: 12 }}
             onClick={() => setShowCurriculumModal(true)}
@@ -863,6 +855,14 @@ export default function DashboardPage() {
                   현재 커리큘럼: {selectedCurriculum || '-'}
                 </div>
               </div>
+              <button
+                type="button"
+                className="btn btn-primary"
+                style={{ fontSize: 12 }}
+                onClick={() => { void handleOpenAiCoaching(); }}
+              >
+                AI 코칭
+              </button>
             </div>
             <div className="tab-group">
               {classes.map((className) => (
