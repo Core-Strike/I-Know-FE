@@ -528,14 +528,15 @@ export default function InstructorPage() {
           </span>
           <span
             style={{
-              fontSize: 26,
+              fontSize: 28,
               fontWeight: 800,
-              letterSpacing: 8,
+              letterSpacing: 4,
               color: '#1e40af',
               background: '#dbeafe',
-              padding: '4px 18px',
+              padding: '6px 20px',
               borderRadius: 8,
               fontFamily: 'monospace',
+              userSelect: 'all',
             }}
           >
             {session.id}
@@ -545,7 +546,7 @@ export default function InstructorPage() {
             style={{ fontSize: 12, padding: '5px 12px' }}
             onClick={handleCopyId}
           >
-            {copied ? '복사됨' : '복사'}
+            {copied ? '✓ 복사됨' : '복사'}
           </button>
           <span style={{ fontSize: 12, color: '#6b7280', marginLeft: 'auto' }}>
             학생 접속 주소:{' '}
