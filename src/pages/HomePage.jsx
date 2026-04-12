@@ -1,6 +1,9 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
+const createRandomStudentName = () =>
+  String(Math.floor(100000000 + Math.random() * 900000000));
+
 export default function HomePage() {
   const [sessionId, setSessionId] = useState('');
   const [name, setName]           = useState('');
@@ -11,6 +14,7 @@ export default function HomePage() {
     e.preventDefault();
     const trimmedId   = sessionId.trim();
     const trimmedName = name.trim();
+    const studentName = trimmedName || createRandomStudentName();
 
     if (!trimmedId) {
       setError('수업 ID를 입력해 주세요.');
@@ -20,16 +24,11 @@ export default function HomePage() {
       setError('수업 ID는 6자리 숫자여야 합니다.');
       return;
     }
-    if (!trimmedName) {
-      setError('이름을 입력해 주세요.');
-      return;
-    }
 
-    navigate(`/student/${encodeURIComponent(trimmedId)}?name=${encodeURIComponent(trimmedName)}`);
+    navigate(`/student/${encodeURIComponent(trimmedId)}?name=${encodeURIComponent(studentName)}`);
   };
 
   const handleSessionIdChange = (e) => {
-    // 숫자만 허용, 최대 6자리
     const val = e.target.value.replace(/\D/g, '').slice(0, 6);
     setSessionId(val);
     setError('');
@@ -49,13 +48,12 @@ export default function HomePage() {
         className="card"
         style={{ width: 360, padding: '36px 32px', textAlign: 'center' }}
       >
-        {/* 로고 영역 */}
-        <div style={{ marginBottom: 8, fontSize: 28 }}>📚</div>
+        <div style={{ marginBottom: 8, fontSize: 28 }}>🎓</div>
         <h2 style={{ fontSize: 18, fontWeight: 700, marginBottom: 4 }}>
           iKnow
         </h2>
         <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 28 }}>
-          강사님이 알려준 수업 ID를 입력해 수업에 참가하세요
+          강사에게 받은 수업 ID를 입력하고 수업에 참여하세요.
         </p>
 
         <form onSubmit={handleJoin} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -82,7 +80,7 @@ export default function HomePage() {
           />
           <input
             type="text"
-            placeholder="이름 입력 (예: 홍길동)"
+            placeholder="이름 입력 (비우면 9자리 숫자 자동 생성)"
             value={name}
             onChange={(e) => { setName(e.target.value); setError(''); }}
             style={{
@@ -99,18 +97,19 @@ export default function HomePage() {
             <p style={{ fontSize: 12, color: 'var(--red)', marginTop: -4 }}>{error}</p>
           )}
           <button type="submit" className="btn btn-primary" style={{ width: '100%', justifyContent: 'center', padding: '10px' }}>
-            수업 참가
+            수업 참여
           </button>
         </form>
 
         <p style={{ marginTop: 20, fontSize: 12, color: 'var(--text-secondary)' }}>
-          강사라면 →{' '}
+          강사라면{' '}
           <a
             href="/instructor"
             style={{ color: 'var(--blue)', textDecoration: 'underline' }}
           >
             강사 페이지
           </a>
+          로 이동하세요.
         </p>
       </div>
     </div>

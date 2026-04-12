@@ -61,6 +61,7 @@ function buildDashboardView(items) {
     item.recentAlerts.map((alert) => ({
       ...alert,
       classTag: item.classId,
+      curriculum: item.curriculum,
     })),
   );
 
@@ -79,7 +80,6 @@ function buildDashboardView(items) {
 function EllipsisCell({ value, accent = false }) {
   return (
     <td
-      title={value}
       style={{
         color: accent ? 'var(--text-primary)' : 'var(--text-secondary)',
         fontWeight: accent ? 500 : 400,
@@ -94,6 +94,108 @@ function EllipsisCell({ value, accent = false }) {
   );
 }
 
+function AlertDetailModal({ alert, onClose }) {
+  if (!alert) {
+    return null;
+  }
+
+  return (
+    <div
+      style={{
+        position: 'fixed',
+        inset: 0,
+        background: 'rgba(0,0,0,0.45)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: 24,
+        zIndex: 1100,
+      }}
+      onClick={onClose}
+    >
+      <div
+        className="card"
+        style={{
+          width: 'min(720px, 100%)',
+          height: 'min(640px, calc(100vh - 48px))',
+          padding: 0,
+          display: 'flex',
+          flexDirection: 'column',
+        }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div
+          style={{
+            padding: '20px 22px 16px',
+            borderBottom: '1px solid var(--border)',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'flex-start',
+            gap: 16,
+          }}
+        >
+          <div>
+            <h3 style={{ fontSize: 18, fontWeight: 700, marginBottom: 6 }}>알림 상세</h3>
+            <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
+              {alert.time} · {alert.classTag} · 이해 어려움 {alert.confusion}%
+            </div>
+          </div>
+          <button type="button" className="btn btn-outline" onClick={onClose}>
+            닫기
+          </button>
+        </div>
+
+        <div style={{ padding: 22, overflowY: 'auto', minHeight: 0 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '120px 1fr', gap: 10, fontSize: 13, marginBottom: 20 }}>
+            <div style={{ color: 'var(--text-secondary)' }}>커리큘럼</div>
+            <div>{alert.curriculum || '-'}</div>
+            <div style={{ color: 'var(--text-secondary)' }}>반</div>
+            <div>{alert.classTag}</div>
+            <div style={{ color: 'var(--text-secondary)' }}>발생 시각</div>
+            <div>{alert.time}</div>
+            <div style={{ color: 'var(--text-secondary)' }}>이해 어려움 정도</div>
+            <div>{alert.confusion}%</div>
+          </div>
+
+          <div style={{ marginBottom: 18 }}>
+            <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 8, color: 'var(--text-secondary)' }}>헷갈린 내용</div>
+            <div
+              style={{
+                background: '#fafaf7',
+                border: '1px solid var(--border)',
+                borderRadius: 8,
+                padding: '14px 16px',
+                whiteSpace: 'pre-wrap',
+                lineHeight: 1.7,
+                fontSize: 14,
+              }}
+            >
+              {alert.topic || '-'}
+            </div>
+          </div>
+
+          <div>
+            <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 8, color: 'var(--text-secondary)' }}>보충할 내용</div>
+            <div
+              style={{
+                background: '#fafaf7',
+                border: '1px solid var(--border)',
+                borderRadius: 8,
+                padding: '14px 16px',
+                whiteSpace: 'pre-wrap',
+                lineHeight: 1.7,
+                fontSize: 14,
+              }}
+            >
+              {alert.reason || '-'}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function DashboardPage() {
   const [pinPassed, setPinPassed] = useState(false);
   const [date, setDate] = useState(todayStr());
@@ -104,6 +206,7 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
+  const [selectedAlert, setSelectedAlert] = useState(null);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -169,6 +272,7 @@ export default function DashboardPage() {
 
   useEffect(() => {
     setCurrentPage(1);
+    setSelectedAlert(null);
   }, [date, selectedCurriculum, selectedClass, items]);
 
   if (!pinPassed) {
@@ -177,6 +281,8 @@ export default function DashboardPage() {
 
   return (
     <div className="page-wrapper">
+      <AlertDetailModal alert={selectedAlert} onClose={() => setSelectedAlert(null)} />
+
       <div className="top-bar">
         <div className="top-bar-left">
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -190,7 +296,7 @@ export default function DashboardPage() {
             </button>
             <h2>대시보드</h2>
           </div>
-          <p>왼쪽 커리큘럼 목록은 수업 시작 콤보박스 값과 완전히 동일합니다.</p>
+          <p>좌측 커리큘럼과 반을 선택해 알림 흐름을 확인할 수 있습니다.</p>
         </div>
         <div className="top-bar-right">
           <label style={{ fontSize: 13, color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -309,7 +415,7 @@ export default function DashboardPage() {
                   <YAxis tick={{ fontSize: 12 }} allowDecimals={false} />
                   <Tooltip
                     contentStyle={{ fontSize: 12, borderRadius: 6 }}
-                    formatter={(value) => [value, '알림']}
+                    formatter={(value) => [value, '알림 수']}
                   />
                   <Bar dataKey="count" fill="#93c5fd" radius={[4, 4, 0, 0]} />
                 </BarChart>
@@ -317,7 +423,7 @@ export default function DashboardPage() {
             </div>
 
             <div className="card">
-              <p className="card-title">시간대별 이해 어려움 정도 추이</p>
+              <p className="card-title">시간대별 이해 어려움 추이</p>
               <ResponsiveContainer width="100%" height={180}>
                 <LineChart data={lineData} margin={{ top: 4, right: 8, left: -20, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#f0f0ec" />
@@ -339,7 +445,7 @@ export default function DashboardPage() {
                 </LineChart>
               </ResponsiveContainer>
               <div style={{ textAlign: 'center', fontSize: 11, color: 'var(--text-secondary)', marginTop: 4 }}>
-                빨간 점선 = threshold 50%
+                빨간 점선은 기준값 50%를 뜻합니다.
               </div>
             </div>
           </div>
@@ -361,7 +467,11 @@ export default function DashboardPage() {
               </thead>
               <tbody>
                 {pagedAlertHistory.map((alert) => (
-                  <tr key={alert.id}>
+                  <tr
+                    key={alert.id}
+                    onClick={() => setSelectedAlert(alert)}
+                    style={{ cursor: 'pointer' }}
+                  >
                     <td>{alert.time}</td>
                     <td>
                       <span className="badge badge-red" style={{ fontSize: 11, padding: '2px 8px' }}>

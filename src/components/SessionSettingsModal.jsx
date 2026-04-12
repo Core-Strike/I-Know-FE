@@ -30,7 +30,7 @@ export default function SessionSettingsModal({ onConfirm, onCancel }) {
       <div className="card" style={{ width: 420, padding: '32px 28px' }}>
         <h2 style={{ fontSize: 16, fontWeight: 700, marginBottom: 4 }}>수업 시작 설정</h2>
         <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 24 }}>
-          수업 생성 전에 기본 옵션을 설정합니다.
+          수업을 열기 전에 기본 옵션을 확인해 주세요.
         </p>
 
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
@@ -62,7 +62,7 @@ export default function SessionSettingsModal({ onConfirm, onCancel }) {
 
           <div>
             <label style={{ fontSize: 13, fontWeight: 600, display: 'block', marginBottom: 6 }}>
-              반 ID
+              반 이름
             </label>
             <input
               type="text"
@@ -82,7 +82,7 @@ export default function SessionSettingsModal({ onConfirm, onCancel }) {
 
           <div>
             <label style={{ fontSize: 13, fontWeight: 600, display: 'block', marginBottom: 6 }}>
-              이해 못한 교육생 비율 기준
+              이해 어려움 감지 기준
               <span
                 style={{
                   marginLeft: 10,

@@ -1,58 +1,71 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useWebcam } from '../hooks/useWebcam';
-import { analyzeFrame, postConfusedEvent } from '../api';
+import { analyzeFrame, getSession, postConfusedEvent } from '../api';
 
 const CONFUSED_STREAK_NEEDED = 3;
+const EMOTION_LABELS = {
+  happy: '기쁨',
+  neutral: '무표정',
+  fear: '불안',
+  sad: '슬픔',
+  angry: '분노',
+  disgust: '거부감',
+  surprise: '놀람',
+};
+
+const createRandomStudentName = () =>
+  String(Math.floor(100000000 + Math.random() * 900000000));
 
 export default function StudentPage() {
-  const { sessionId } = useParams();   // URL: /student/:sessionId (6자리 숫자 문자열)
-  const [searchParams] = useSearchParams();
+  const { sessionId } = useParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
 
-  // URL ?name= 쿼리에서 학생 이름(= studentId) 읽기
-  const studentId = searchParams.get('name') || 'student_unknown';
+  const [studentId] = useState(() => {
+    const name = searchParams.get('name')?.trim();
+    return name || createRandomStudentName();
+  });
 
-  // ── 분석 상태 (명세 응답 구조 반영) ───────────────────────
   const [analysisResult, setAnalysisResult] = useState({
-    confused:    false,
-    confidence:  0,
-    emotion:     '-',
-    gpt_reason:  '',
+    confused: false,
+    confidence: 0,
+    emotion: '-',
+    gpt_reason: '',
     face_features: {
-      face_detected:  false,
-      emotions:       { happy: 0, neutral: 0, fear: 0, sad: 0, angry: 0, disgust: 0, surprise: 0 },
-      top_emotion:    '-',
-      confidence:     0,
+      face_detected: false,
+      emotions: { happy: 0, neutral: 0, fear: 0, sad: 0, angry: 0, disgust: 0, surprise: 0 },
+      top_emotion: '-',
+      confidence: 0,
       brow_eye_ratio: 0,
-      ear:            0,
-      head_tilt_deg:  0,
+      ear: 0,
+      head_tilt_deg: 0,
     },
   });
   const [confusedStreak, setConfusedStreak] = useState(0);
-  const [lastSent, setLastSent]             = useState(null);
-  const [cooldown, setCooldown]             = useState(false);
+  const [lastSent, setLastSent] = useState(null);
+  const [cooldown, setCooldown] = useState(false);
+  const [notice, setNotice] = useState('');
   const cooldownTimer = useRef(null);
-  const streakRef     = useRef(0);
+  const streakRef = useRef(0);
 
-  // ── 이미지 분석 & 전송 ─────────────────────────────────────
   const handleFrame = useCallback(
     async (blob) => {
       try {
         const result = await analyzeFrame(blob, studentId);
         setAnalysisResult({
-          confused:   result.confused   ?? false,
+          confused: result.confused ?? false,
           confidence: result.confidence ?? 0,
-          emotion:    result.emotion    ?? '-',
+          emotion: result.emotion ?? '-',
           gpt_reason: result.gpt_reason ?? '',
           face_features: {
-            face_detected:  result.face_features?.face_detected  ?? false,
-            emotions:       result.face_features?.emotions        ?? { happy:0, neutral:0, fear:0, sad:0, angry:0, disgust:0, surprise:0 },
-            top_emotion:    result.face_features?.top_emotion     ?? '-',
-            confidence:     result.face_features?.confidence      ?? 0,
-            brow_eye_ratio: result.face_features?.brow_eye_ratio  ?? 0,
-            ear:            result.face_features?.ear             ?? 0,
-            head_tilt_deg:  result.face_features?.head_tilt_deg   ?? 0,
+            face_detected: result.face_features?.face_detected ?? false,
+            emotions: result.face_features?.emotions ?? { happy: 0, neutral: 0, fear: 0, sad: 0, angry: 0, disgust: 0, surprise: 0 },
+            top_emotion: result.face_features?.top_emotion ?? '-',
+            confidence: result.face_features?.confidence ?? 0,
+            brow_eye_ratio: result.face_features?.brow_eye_ratio ?? 0,
+            ear: result.face_features?.ear ?? 0,
+            head_tilt_deg: result.face_features?.head_tilt_deg ?? 0,
           },
         });
 
@@ -62,13 +75,13 @@ export default function StudentPage() {
           if (streakRef.current >= CONFUSED_STREAK_NEEDED && !cooldown) {
             const now = new Date().toISOString().slice(0, 19);
             await postConfusedEvent({
-              studentId:     studentId,
-              sessionId:     sessionId,
-              studentCount:  1,
+              studentId,
+              sessionId,
+              studentCount: 1,
               totalStudentCount: 1,
-              capturedAt:    now,
+              capturedAt: now,
               confusedScore: result.confidence ?? 0,
-              reason:        result.gpt_reason ?? '',
+              reason: result.gpt_reason ?? '',
             });
             setLastSent(now);
             setCooldown(true);
@@ -96,11 +109,21 @@ export default function StudentPage() {
 
   useEffect(() => () => clearTimeout(cooldownTimer.current), []);
 
-  // ── 헬퍼 ───────────────────────────────────────────────────
+  useEffect(() => {
+    const currentName = searchParams.get('name')?.trim();
+    if (currentName) {
+      return;
+    }
+
+    const nextParams = new URLSearchParams(searchParams);
+    nextParams.set('name', studentId);
+    setSearchParams(nextParams, { replace: true });
+  }, [searchParams, setSearchParams, studentId]);
+
   const fmtTime = (iso) => {
     if (!iso) return '-';
     const d = new Date(iso);
-    return `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}:${String(d.getSeconds()).padStart(2,'0')}`;
+    return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}:${String(d.getSeconds()).padStart(2, '0')}`;
   };
 
   const threshold = 0.45;
@@ -109,9 +132,52 @@ export default function StudentPage() {
   const barPct = Math.min(confidence * 100, 100).toFixed(0);
   const emotions = face_features.emotions;
 
+  const handleToggleClass = useCallback(async () => {
+    if (active) {
+      stop();
+      return;
+    }
+
+    try {
+      const session = await getSession(sessionId);
+      if (session?.status !== 'ACTIVE') {
+        setNotice('이 수업은 아직 시작되지 않았거나 이미 종료되었습니다. 강사에게 수업 시작 여부를 확인해 주세요.');
+        return;
+      }
+
+      await start();
+    } catch (e) {
+      setNotice('아직 시작되지 않은 수업입니다. 강사가 먼저 해당 수업 ID로 수업을 시작해야 합니다.');
+    }
+  }, [active, sessionId, start, stop]);
+
   return (
     <div className="page-wrapper">
-      {/* 상단 헤더 */}
+      {notice && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0,0,0,0.45)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1000,
+            padding: 20,
+          }}
+        >
+          <div className="card" style={{ width: 360, maxWidth: '100%', padding: '28px 24px', textAlign: 'center' }}>
+            <div style={{ fontSize: 28, marginBottom: 8 }}>안내</div>
+            <p style={{ fontSize: 14, color: 'var(--text-primary)', lineHeight: 1.6, marginBottom: 18 }}>
+              {notice}
+            </p>
+            <button className="btn btn-primary" onClick={() => setNotice('')} style={{ justifyContent: 'center', width: '100%' }}>
+              확인
+            </button>
+          </div>
+        </div>
+      )}
+
       <div className="top-bar">
         <div className="top-bar-left">
           <h2>교육생 페이지</h2>
@@ -123,45 +189,42 @@ export default function StudentPage() {
             : <span className="badge badge-gray"><span className="dot dot-gray" />대기 중</span>}
           <button
             className={`btn ${active ? 'btn-danger' : 'btn-primary'}`}
-            onClick={active ? stop : start}
+            onClick={() => { void handleToggleClass(); }}
           >
-            {active ? '수업 나가기' : '수업 참가'}
+            {active ? '수업 나가기' : '수업 시작'}
           </button>
           <button
             className="btn btn-outline"
             onClick={() => { stop(); navigate('/'); }}
           >
-            ← 홈
+            홈으로
           </button>
         </div>
       </div>
 
-      {/* 에러 */}
       {error && (
         <div style={{ padding: '10px 24px', background: '#fee2e2', color: '#b91c1c', fontSize: 13 }}>
           카메라 오류: {error}
         </div>
       )}
 
-      {/* 본문 */}
       <div className="page-body two-col">
-        {/* 좌: 웹캠 피드 */}
         <div className="card">
-          <p className="card-title">웹캠 피드</p>
+          <p className="card-title">학생 화면</p>
           <div className="webcam-box">
             {active
               ? <video ref={videoRef} autoPlay muted playsInline />
               : (
                 <div className="webcam-placeholder">
-                  <div className="webcam-icon">👤</div>
-                  <span>webcam feed</span>
+                  <div className="webcam-icon">📷</div>
+                  <span>카메라 화면</span>
                 </div>
               )}
           </div>
           <div style={{ marginTop: 10, fontSize: 12, color: 'var(--text-secondary)', textAlign: 'center' }}>
             {active
-              ? '10초마다 자동 캡처 · FastAPI 분석 중'
-              : '수업 참가 후 자동으로 시작됩니다'}
+              ? '10초마다 자동으로 캡처해 분석하고 있습니다.'
+              : '수업 시작을 누르면 자동 분석이 시작됩니다.'}
           </div>
           {active && (
             <div style={{ marginTop: 6, fontSize: 11, color: 'var(--text-secondary)', textAlign: 'center' }}>
@@ -170,15 +233,13 @@ export default function StudentPage() {
           )}
         </div>
 
-        {/* 우: 실시간 감지 상태 + 전송 상태 */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-          {/* 실시간 감지 상태 */}
           <div className="card">
             <p className="card-title">실시간 감지 상태</p>
 
             <div className="score-bar-wrap">
               <div className="score-bar-header">
-                <span>confidence</span>
+                <span>혼란도 점수</span>
                 <span className={`score-val ${isConfused ? 'text-red' : ''}`}>
                   {confidence.toFixed(3)}
                 </span>
@@ -190,14 +251,14 @@ export default function StudentPage() {
                 />
               </div>
               <div className="score-bar-sub">
-                <span>threshold {threshold} · top: <strong>{emotion}</strong></span>
-                <span>streak: {confusedStreak}/{CONFUSED_STREAK_NEEDED}</span>
+                <span>기준값 {threshold} · 주요 감정: <strong>{EMOTION_LABELS[emotion] ?? emotion}</strong></span>
+                <span>연속 감지: {confusedStreak}/{CONFUSED_STREAK_NEEDED}</span>
               </div>
             </div>
 
-            {['happy','neutral','fear','sad','angry','disgust','surprise'].map((key) => (
+            {Object.keys(EMOTION_LABELS).map((key) => (
               <div className="emotion-row" key={key}>
-                <span>{key}</span>
+                <span>{EMOTION_LABELS[key]}</span>
                 <span className="emotion-val">{(emotions[key] ?? 0).toFixed(3)}</span>
               </div>
             ))}
@@ -205,13 +266,13 @@ export default function StudentPage() {
             {face_features.face_detected && (
               <div style={{ marginTop: 10, padding: '8px 0', borderTop: '1px solid var(--border)', fontSize: 12, color: 'var(--text-secondary)' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 3 }}>
-                  <span>brow_eye_ratio</span><span>{face_features.brow_eye_ratio.toFixed(3)}</span>
+                  <span>눈썹 대비 눈 비율</span><span>{face_features.brow_eye_ratio.toFixed(3)}</span>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 3 }}>
-                  <span>EAR (눈 개폐)</span><span>{face_features.ear.toFixed(3)}</span>
+                  <span>눈 개방도</span><span>{face_features.ear.toFixed(3)}</span>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <span>head_tilt</span><span>{face_features.head_tilt_deg.toFixed(1)}°</span>
+                  <span>고개 기울기</span><span>{face_features.head_tilt_deg.toFixed(1)}도</span>
                 </div>
               </div>
             )}
@@ -223,7 +284,6 @@ export default function StudentPage() {
             )}
           </div>
 
-          {/* 전송 상태 */}
           <div className="card">
             <p className="card-title">전송 상태</p>
             <div className="emotion-row">
@@ -231,9 +291,9 @@ export default function StudentPage() {
               <span className="emotion-val">{fmtTime(lastSent)}</span>
             </div>
             <div className="emotion-row" style={{ borderBottom: 'none', marginTop: 4 }}>
-              <span>cooldown</span>
+              <span>재전송 대기</span>
               <span className={`badge ${cooldown ? 'badge-orange' : 'badge-green'}`}>
-                {cooldown ? '대기 중' : '준비'}
+                {cooldown ? '대기 중' : '전송 가능'}
               </span>
             </div>
           </div>

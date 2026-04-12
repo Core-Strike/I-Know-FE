@@ -1,12 +1,14 @@
 import axios from 'axios';
 
+const aiBaseUrl = (import.meta.env.VITE_AI_URL || 'http://localhost:8000').replace(/\/$/, '');
+
 const http = axios.create({
   baseURL: import.meta.env.VITE_API_URL || 'http://localhost:8080',
   timeout: 10000,
 });
 
 const ai = axios.create({
-  baseURL: import.meta.env.VITE_AI_URL || 'http://localhost:8000',
+  baseURL: `${aiBaseUrl}/ai-api`,
   timeout: 15000,
 });
 
@@ -15,6 +17,9 @@ export const createSession = (data) =>
 
 export const endSession = (id) =>
   http.patch(`/api/sessions/${id}/end`).then((r) => r.data);
+
+export const getSession = (id) =>
+  http.get(`/api/sessions/${id}`).then((r) => r.data);
 
 export const getSessionAlerts = (id) =>
   http.get(`/api/sessions/${id}/alerts`).then((r) => r.data);
@@ -41,7 +46,7 @@ export const deleteAlert = (alertId) =>
   http.delete(`/api/alerts/${alertId}`).then((r) => r.data);
 
 export const postLectureSummary = async ({ alertId, audioText }) => {
-  const aiRes = await ai.post('/ai-api/summarize', { audioText }).then((r) => r.data);
+  const aiRes = await ai.post('/summarize', { audioText }).then((r) => r.data);
   const summary = aiRes.summary ?? '';
   const recommendedConcept = aiRes.recommendedConcept ?? '';
 

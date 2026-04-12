@@ -60,13 +60,13 @@ function SilenceToast({ onClose }) {
     >
       <div>
         <div style={{ fontWeight: 700 }}>30분 무음 경고</div>
-        <div style={{ fontSize: 12 }}>마이크가 음소거 상태인지 확인해 주세요.</div>
+        <div style={{ fontSize: 12 }}>마이크가 꺼져 있거나 음소거 상태인지 확인해 주세요.</div>
       </div>
       <button
         onClick={onClose}
         style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: '#92400e', fontSize: 18 }}
       >
-        x
+        닫기
       </button>
     </div>
   );
@@ -184,7 +184,7 @@ export default function InstructorPage() {
     }
 
     if (!stt.supported) {
-      setSessionError('이 브라우저는 음성 인식을 지원하지 않습니다.');
+      setSessionError('현재 브라우저는 음성 인식을 지원하지 않습니다.');
       return;
     }
 
@@ -301,7 +301,7 @@ export default function InstructorPage() {
   const handleGenerateSummary = useCallback(async (alert) => {
     const transcript = alert.transcript.trim();
     if (!transcript) {
-      setSessionError('전사 내용이 없으면 AI 요약을 생성할 수 없습니다.');
+      setSessionError('전사 내용이 없으면 AI 요약을 만들 수 없습니다.');
       return;
     }
 
@@ -383,15 +383,15 @@ export default function InstructorPage() {
         <div className="top-bar-left">
           <h2>강사 콘솔</h2>
           {session
-            ? <p>수업 #{session.id} · {session.startedAt} · 반 ID {session.classId}</p>
-            : <p style={{ color: 'var(--text-secondary)' }}>수업을 시작하면 학생 알림을 기다립니다.</p>}
+            ? <p>수업 #{session.id} · 시작 {session.startedAt} · 반 {session.classId}</p>
+            : <p style={{ color: 'var(--text-secondary)' }}>수업을 시작하면 학생 알림이 이곳에 표시됩니다.</p>}
         </div>
         <div className="top-bar-right">
           {sessionActive && connected && (
-            <span className="badge badge-green"><span className="dot dot-green" />웹소켓 연결됨</span>
+            <span className="badge badge-green"><span className="dot dot-green" />연결됨</span>
           )}
           {sessionActive && !connected && (
-            <span className="badge badge-orange"><span className="dot dot-gray" />웹소켓 연결 대기</span>
+            <span className="badge badge-orange"><span className="dot dot-gray" />연결 대기 중</span>
           )}
           <button className="btn btn-primary" onClick={() => setShowSettings(true)} disabled={sessionActive}>
             수업 시작
@@ -421,7 +421,7 @@ export default function InstructorPage() {
           }}
         >
           <span style={{ fontSize: 13, color: '#1d4ed8', fontWeight: 600 }}>
-            학생들에게 이 수업 ID를 공유하세요
+            학생들에게 아래 수업 ID를 공유해 주세요.
           </span>
           <span
             style={{
@@ -456,11 +456,11 @@ export default function InstructorPage() {
       <div className="page-body two-col">
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           <div className="card">
-            <p className="card-title">마이크</p>
+            <p className="card-title">마이크 상태</p>
             <div className="mic-status">
               <span className={`dot ${mic.active && !mic.muted ? 'dot-green' : mic.active && mic.muted ? 'dot-orange' : 'dot-gray'}`} />
               <span style={{ flex: 1 }}>
-                {!mic.active ? '중지됨' : mic.muted ? '음소거됨' : '듣는 중'}
+                {!mic.active ? '중지됨' : mic.muted ? '음소거됨' : '사용 중'}
               </span>
               {mic.active && (
                 <button
@@ -478,7 +478,7 @@ export default function InstructorPage() {
               </div>
             )}
             <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 8, marginBottom: 6 }}>
-              학생 알림 후보가 오면 2분 동안 음성을 전사한 뒤 알림을 저장합니다.
+              학생 알림이 들어오면 2분 동안 강의 음성을 받아 자동으로 기록합니다.
             </p>
             {stt.supported && stt.recording && (
               <div
@@ -496,7 +496,7 @@ export default function InstructorPage() {
               >
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <span className="dot dot-green" style={{ flexShrink: 0 }} />
-                  현재 학생 이벤트에 대한 전사를 녹음 중입니다...
+                  현재 알림에 대한 강의 내용을 기록하고 있습니다...
                 </div>
                 <div
                   style={{
@@ -515,7 +515,7 @@ export default function InstructorPage() {
             )}
             {!stt.supported && (
               <div style={{ fontSize: 11, color: '#9ca3af', fontStyle: 'italic' }}>
-                이 브라우저는 Web Speech API를 지원하지 않습니다.
+                현재 브라우저는 음성 인식 기능을 지원하지 않습니다.
               </div>
             )}
           </div>
@@ -533,12 +533,12 @@ export default function InstructorPage() {
               </div>
               <div className="stat-box">
                 <div className="stat-val">{session?.classId ?? '-'}</div>
-                <div className="stat-label">반 ID</div>
+                <div className="stat-label">반 이름</div>
               </div>
             </div>
             {session?.thresholdPct && (
               <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 8, textAlign: 'center' }}>
-                임계값 {session.thresholdPct}%
+                감지 기준 {session.thresholdPct}%
               </div>
             )}
           </div>
@@ -546,9 +546,9 @@ export default function InstructorPage() {
           <div className="card">
             <p className="card-title">연결 상태</p>
             {[
-              { label: 'Spring API', val: import.meta.env.VITE_API_URL || 'http://localhost:8080' },
-              { label: '웹소켓', val: sessionActive ? (connected ? '연결됨' : '연결 중...') : '대기 중' },
-              { label: '대기 중인 후보', val: String(candidateQueueRef.current.length) },
+              { label: '백엔드 주소', val: import.meta.env.VITE_API_URL || 'http://localhost:8080' },
+              { label: '실시간 연결', val: sessionActive ? (connected ? '연결됨' : '연결 중...') : '대기 중' },
+              { label: '대기 중인 알림', val: String(candidateQueueRef.current.length) },
             ].map(({ label, val }) => (
               <div className="emotion-row" key={label}>
                 <span style={{ color: 'var(--text-secondary)', fontSize: 12 }}>{label}</span>
@@ -559,7 +559,7 @@ export default function InstructorPage() {
 
           {session?.curriculum && (
             <div className="card">
-              <p className="card-title">오늘의 커리큘럼</p>
+              <p className="card-title">현재 커리큘럼</p>
               <pre
                 style={{
                   fontSize: 12,
@@ -591,13 +591,13 @@ export default function InstructorPage() {
 
           {!sessionActive && (
             <div style={{ textAlign: 'center', color: 'var(--text-secondary)', padding: '32px 0', fontSize: 13 }}>
-              학생 이벤트가 기록되고 저장되면 알림이 표시됩니다.
+              학생 이벤트가 기록되면 알림이 여기에 표시됩니다.
             </div>
           )}
 
           {sessionActive && !loadingAlerts && alerts.length === 0 && (
             <div style={{ textAlign: 'center', color: 'var(--text-secondary)', padding: '32px 0', fontSize: 13 }}>
-              아직 저장된 알림이 없습니다.
+              아직 들어온 알림이 없습니다.
             </div>
           )}
 
@@ -622,7 +622,7 @@ export default function InstructorPage() {
                 넘기기
               </button>
 
-              <div className="alert-card-title">저장된 알림</div>
+              <div className="alert-card-title">접수된 알림</div>
               <div className="alert-card-meta">{alert.time}</div>
 
               <div style={{ marginTop: 10, borderTop: '1px solid var(--border)', paddingTop: 10 }}>
@@ -682,7 +682,7 @@ export default function InstructorPage() {
                       {alert.savingSummary
                         ? '저장 중...'
                         : alert.summary?.trim()
-                          ? '수정 저장'
+                          ? '수정 내용 저장'
                           : '직접 입력 저장'}
                     </button>
                   </div>
