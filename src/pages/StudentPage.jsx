@@ -54,9 +54,13 @@ export default function StudentPage() {
   const [confusedStreak, setConfusedStreak] = useState(0);
   const [lastSent, setLastSent] = useState(null);
   const [cooldown, setCooldown] = useState(false);
+  const [manualCooldown, setManualCooldown] = useState(false);
+  const [manualSent, setManualSent] = useState(false); // 버튼 눌림 피드백
   const [notice, setNotice] = useState('');
   const [noticeRedirectHome, setNoticeRedirectHome] = useState(false);
   const cooldownTimer = useRef(null);
+  const manualCooldownTimer = useRef(null);
+  const manualSentTimer = useRef(null);
   const streakRef = useRef(0);
   const joinedRef = useRef(false);
 
@@ -118,7 +122,43 @@ export default function StudentPage() {
     enabled: true,
   });
 
-  useEffect(() => () => clearTimeout(cooldownTimer.current), []);
+  useEffect(() => () => {
+    clearTimeout(cooldownTimer.current);
+    clearTimeout(manualCooldownTimer.current);
+    clearTimeout(manualSentTimer.current);
+  }, []);
+
+  // 모르겠어요 버튼 — 즉시 혼란 신호 전송
+  const handleManualConfused = useCallback(async () => {
+    if (!active || manualCooldown) return;
+
+    setManualCooldown(true);
+    setManualSent(true);
+
+    // 2초 후 피드백 텍스트 원복
+    clearTimeout(manualSentTimer.current);
+    manualSentTimer.current = setTimeout(() => setManualSent(false), 2000);
+
+    // 15초 쿨다운
+    clearTimeout(manualCooldownTimer.current);
+    manualCooldownTimer.current = setTimeout(() => setManualCooldown(false), 15000);
+
+    try {
+      const now = getSeoulDateTime();
+      await postConfusedEvent({
+        studentId,
+        sessionId,
+        studentCount: 1,
+        totalStudentCount: 1,
+        capturedAt: now,
+        confusedScore: 1.0,
+        reason: '학생 직접 신호',
+      });
+      setLastSent(now);
+    } catch (e) {
+      console.warn('manual confused event error', e.message);
+    }
+  }, [active, manualCooldown, studentId, sessionId]);
 
   useEffect(() => {
     if (!active) {
@@ -340,6 +380,45 @@ export default function StudentPage() {
           {active && (
             <div style={{ marginTop: 6, fontSize: 11, color: 'var(--text-secondary)', textAlign: 'center' }}>
               캡처 이미지는 별도로 저장되지 않습니다.
+            </div>
+          )}
+
+          {/* 모르겠어요 버튼 */}
+          <button
+            onClick={() => { void handleManualConfused(); }}
+            disabled={!active || manualCooldown}
+            style={{
+              marginTop: 16,
+              width: '100%',
+              padding: '16px 0',
+              fontSize: 18,
+              fontWeight: 800,
+              borderRadius: 12,
+              border: 'none',
+              cursor: active && !manualCooldown ? 'pointer' : 'not-allowed',
+              background: manualSent
+                ? '#22c55e'
+                : manualCooldown
+                  ? '#e5e7eb'
+                  : '#ef4444',
+              color: manualCooldown && !manualSent ? '#9ca3af' : '#fff',
+              transition: 'background 0.2s, transform 0.1s',
+              transform: manualSent ? 'scale(0.97)' : 'scale(1)',
+              boxShadow: active && !manualCooldown
+                ? '0 4px 14px rgba(239,68,68,0.35)'
+                : 'none',
+              letterSpacing: 1,
+            }}
+          >
+            {manualSent
+              ? '✓ 전송됨!'
+              : manualCooldown
+                ? '잠시 후 다시 누를 수 있어요'
+                : '🙋 모르겠어요'}
+          </button>
+          {active && (
+            <div style={{ marginTop: 6, fontSize: 11, color: 'var(--text-secondary)', textAlign: 'center' }}>
+              강사에게 즉시 알림을 보냅니다 · 15초 후 재전송 가능
             </div>
           )}
         </div>
