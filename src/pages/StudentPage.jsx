@@ -139,9 +139,9 @@ export default function StudentPage() {
     clearTimeout(manualSentTimer.current);
     manualSentTimer.current = setTimeout(() => setManualSent(false), 2000);
 
-    // 15초 쿨다운
+    // 2분 쿨다운
     clearTimeout(manualCooldownTimer.current);
-    manualCooldownTimer.current = setTimeout(() => setManualCooldown(false), 15000);
+    manualCooldownTimer.current = setTimeout(() => setManualCooldown(false), 2 * 60 * 1000);
 
     try {
       const now = getSeoulDateTime();
@@ -413,12 +413,12 @@ export default function StudentPage() {
             {manualSent
               ? '✓ 전송됨!'
               : manualCooldown
-                ? '잠시 후 다시 누를 수 있어요'
+                ? '2분 후 다시 누를 수 있어요'
                 : '🙋 모르겠어요'}
           </button>
           {active && (
             <div style={{ marginTop: 6, fontSize: 11, color: 'var(--text-secondary)', textAlign: 'center' }}>
-              강사에게 즉시 알림을 보냅니다 · 15초 후 재전송 가능
+              강사에게 즉시 알림을 보냅니다 · 2분 후 재전송 가능
             </div>
           )}
         </div>
