@@ -1,13 +1,35 @@
-import { useState } from 'react';
-import { CURRICULUM_OPTIONS, DEFAULT_CURRICULUM } from '../constants/curriculum';
+import { useEffect, useState } from 'react';
 
-export default function SessionSettingsModal({ onConfirm, onCancel }) {
+export default function SessionSettingsModal({
+  curriculums = [],
+  loading = false,
+  error = '',
+  onConfirm,
+  onCancel,
+}) {
   const [thresholdPct, setThresholdPct] = useState(45);
-  const [curriculum, setCurriculum] = useState(DEFAULT_CURRICULUM);
+  const [curriculum, setCurriculum] = useState(curriculums[0]?.name ?? '');
   const [classId, setClassId] = useState('class-1');
+
+  useEffect(() => {
+    if (!curriculums.length) {
+      setCurriculum('');
+      return;
+    }
+
+    setCurriculum((prev) => (
+      prev && curriculums.some((item) => item.name === prev)
+        ? prev
+        : curriculums[0].name
+    ));
+  }, [curriculums]);
 
   const handleSubmit = (e) => {
     e.preventDefault();
+    if (!curriculum) {
+      return;
+    }
+
     onConfirm({
       thresholdPct,
       curriculum,
@@ -27,7 +49,7 @@ export default function SessionSettingsModal({ onConfirm, onCancel }) {
         zIndex: 900,
       }}
     >
-      <div className="card" style={{ width: 420, padding: '32px 28px' }}>
+      <div className="card" style={{ width: 420, maxWidth: 'calc(100vw - 32px)', padding: '32px 28px' }}>
         <h2 style={{ fontSize: 16, fontWeight: 700, marginBottom: 4 }}>수업 시작 설정</h2>
         <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 24 }}>
           수업을 열기 전에 기본 옵션을 확인해 주세요.
@@ -42,6 +64,7 @@ export default function SessionSettingsModal({ onConfirm, onCancel }) {
               value={curriculum}
               onChange={(e) => setCurriculum(e.target.value)}
               required
+              disabled={loading || curriculums.length === 0}
               style={{
                 width: '100%',
                 padding: '9px 12px',
@@ -52,12 +75,22 @@ export default function SessionSettingsModal({ onConfirm, onCancel }) {
                 background: '#fff',
               }}
             >
-              {CURRICULUM_OPTIONS.map((option) => (
-                <option key={option} value={option}>
-                  {option}
+              {curriculums.length === 0 && (
+                <option value="">
+                  {loading ? '커리큘럼 불러오는 중...' : '등록된 커리큘럼이 없습니다'}
+                </option>
+              )}
+              {curriculums.map((option) => (
+                <option key={option.id} value={option.name}>
+                  {option.name}
                 </option>
               ))}
             </select>
+            {error && (
+              <div style={{ marginTop: 6, fontSize: 12, color: '#b91c1c' }}>
+                {error}
+              </div>
+            )}
           </div>
 
           <div>
@@ -113,7 +146,7 @@ export default function SessionSettingsModal({ onConfirm, onCancel }) {
               }}
             >
               <span>10% (민감)</span>
-              <span>90% (둔감)</span>
+              <span>90% (엄격)</span>
             </div>
           </div>
 
@@ -121,7 +154,7 @@ export default function SessionSettingsModal({ onConfirm, onCancel }) {
             <button type="button" className="btn btn-outline" onClick={onCancel}>
               취소
             </button>
-            <button type="submit" className="btn btn-primary">
+            <button type="submit" className="btn btn-primary" disabled={loading || curriculums.length === 0 || !curriculum}>
               수업 시작
             </button>
           </div>

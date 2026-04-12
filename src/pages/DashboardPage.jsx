@@ -3,19 +3,20 @@ import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
   LineChart, Line, ReferenceLine, CartesianGrid,
 } from 'recharts';
-import { getDashboardClasses, getKeywordReport } from '../api';
+import {
+  createCurriculum,
+  deleteCurriculum,
+  getCurriculums,
+  getDashboardClasses,
+  getKeywordReport,
+} from '../api';
+import CurriculumManagerModal from '../components/CurriculumManagerModal';
 import KeywordCloudPanel from '../components/KeywordCloudPanel';
 import PinModal from '../components/PinModal';
-import { CURRICULUM_OPTIONS, DEFAULT_CURRICULUM } from '../constants/curriculum';
 import { formatSeoulClock, getSeoulDate } from '../utils/seoulTime';
 
 const ALL_CLASSES = '전체 반';
 const PAGE_SIZE = 5;
-const todayStr = () => getSeoulDate();
-
-function normalizeCurriculum(value) {
-  return CURRICULUM_OPTIONS.includes(value) ? value : DEFAULT_CURRICULUM;
-}
 
 function normalizeResponse(dataArray) {
   if (!Array.isArray(dataArray)) {
@@ -23,7 +24,7 @@ function normalizeResponse(dataArray) {
   }
 
   return dataArray.map((item) => ({
-    curriculum: normalizeCurriculum(item.curriculum ?? item.curriculumName),
+    curriculum: item.curriculum ?? item.curriculumName ?? '',
     classId: item.classId ?? '-',
     alertCount: item.alertCount ?? 0,
     participantCount: item.participantCount ?? 0,
@@ -332,7 +333,7 @@ function KeywordReportModal({ keyword, report, loading, error, onClose }) {
                 <div style={{ color: 'var(--text-secondary)' }}>커리큘럼</div>
                 <div>{report.curriculum || '-'}</div>
                 <div style={{ color: 'var(--text-secondary)' }}>반</div>
-                <div>{report.classId || '전체 반'}</div>
+                <div>{report.classId || ALL_CLASSES}</div>
                 <div style={{ color: 'var(--text-secondary)' }}>보충 필요 수준</div>
                 <div>{report.reinforcementLevel || '-'}</div>
                 <div style={{ color: 'var(--text-secondary)' }}>관련 알림 시각</div>
@@ -352,9 +353,10 @@ function KeywordReportModal({ keyword, report, loading, error, onClose }) {
 
 export default function DashboardPage() {
   const [pinPassed, setPinPassed] = useState(false);
-  const [date, setDate] = useState(todayStr());
+  const [date, setDate] = useState(getSeoulDate());
   const [items, setItems] = useState([]);
-  const [selectedCurriculum, setSelectedCurriculum] = useState(DEFAULT_CURRICULUM);
+  const [curriculums, setCurriculums] = useState([]);
+  const [selectedCurriculum, setSelectedCurriculum] = useState('');
   const [selectedClass, setSelectedClass] = useState(ALL_CLASSES);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [loading, setLoading] = useState(false);
@@ -365,57 +367,69 @@ export default function DashboardPage() {
   const [keywordReport, setKeywordReport] = useState(null);
   const [keywordReportLoading, setKeywordReportLoading] = useState(false);
   const [keywordReportError, setKeywordReportError] = useState('');
+  const [showCurriculumModal, setShowCurriculumModal] = useState(false);
+  const [curriculumLoading, setCurriculumLoading] = useState(false);
+  const [curriculumError, setCurriculumError] = useState('');
+
+  const loadCurriculums = useCallback(async () => {
+    setCurriculumLoading(true);
+    setCurriculumError('');
+    try {
+      const data = await getCurriculums();
+      const list = Array.isArray(data) ? data : [];
+      setCurriculums(list);
+      setSelectedCurriculum((prev) => (
+        prev && list.some((item) => item.name === prev)
+          ? prev
+          : list[0]?.name ?? ''
+      ));
+    } catch (fetchError) {
+      setCurriculumError(`커리큘럼 목록을 불러오지 못했습니다. (${fetchError.message})`);
+      setCurriculums([]);
+      setSelectedCurriculum('');
+    } finally {
+      setCurriculumLoading(false);
+    }
+  }, []);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
     setError('');
     try {
       const raw = await getDashboardClasses(date);
-      const normalized = normalizeResponse(raw);
-      setItems(normalized);
-      setSelectedCurriculum(normalizeCurriculum(normalized[0]?.curriculum));
-      setSelectedClass(ALL_CLASSES);
-    } catch (e) {
-      setError(`서버 연결에 실패했습니다. (${e.message})`);
+      setItems(normalizeResponse(raw));
+    } catch (fetchError) {
+      setError(`서버 연결에 실패했습니다. (${fetchError.message})`);
       setItems([]);
-      setSelectedCurriculum(DEFAULT_CURRICULUM);
-      setSelectedClass(ALL_CLASSES);
     } finally {
       setLoading(false);
     }
   }, [date]);
 
   useEffect(() => {
-    fetchData();
+    void loadCurriculums();
+  }, [loadCurriculums]);
+
+  useEffect(() => {
+    void fetchData();
   }, [fetchData]);
 
-  const curriculums = CURRICULUM_OPTIONS;
-
-  const curriculumItems = useMemo(
-    () => items.filter((item) => normalizeCurriculum(item.curriculum) === selectedCurriculum),
-    [items, selectedCurriculum],
-  );
-
-  const classes = useMemo(
-    () => [ALL_CLASSES, ...new Set(curriculumItems.map((item) => item.classId).filter(Boolean))],
-    [curriculumItems],
-  );
+  const classes = useMemo(() => {
+    const curriculumItems = items.filter((item) => item.curriculum === selectedCurriculum);
+    return [ALL_CLASSES, ...new Set(curriculumItems.map((item) => item.classId).filter(Boolean))];
+  }, [items, selectedCurriculum]);
 
   useEffect(() => {
-    if (!curriculums.includes(selectedCurriculum)) {
-      setSelectedCurriculum(DEFAULT_CURRICULUM);
-    }
-  }, [curriculums, selectedCurriculum]);
-
-  useEffect(() => {
-    if (!classes.includes(selectedClass)) {
+    if (selectedClass !== ALL_CLASSES && !classes.includes(selectedClass)) {
       setSelectedClass(ALL_CLASSES);
     }
   }, [classes, selectedClass]);
 
-  const visibleItems = selectedClass === ALL_CLASSES
-    ? curriculumItems
-    : curriculumItems.filter((item) => item.classId === selectedClass);
+  const visibleItems = useMemo(() => (
+    items
+      .filter((item) => !selectedCurriculum || item.curriculum === selectedCurriculum)
+      .filter((item) => selectedClass === ALL_CLASSES || item.classId === selectedClass)
+  ), [items, selectedClass, selectedCurriculum]);
 
   const { kpi, barData, lineData, alertHistory, keywordCloud } = useMemo(
     () => buildDashboardView(visibleItems),
@@ -457,6 +471,17 @@ export default function DashboardPage() {
     }
   }, [date, selectedClass, selectedCurriculum]);
 
+  const handleCreateCurriculum = useCallback(async (name) => {
+    await createCurriculum(name);
+    await loadCurriculums();
+  }, [loadCurriculums]);
+
+  const handleDeleteCurriculum = useCallback(async (curriculum) => {
+    await deleteCurriculum(curriculum.id);
+    await loadCurriculums();
+    await fetchData();
+  }, [fetchData, loadCurriculums]);
+
   if (!pinPassed) {
     return <PinModal onSuccess={() => setPinPassed(true)} />;
   }
@@ -474,6 +499,15 @@ export default function DashboardPage() {
           setKeywordReport(null);
           setKeywordReportError('');
         }}
+      />
+      <CurriculumManagerModal
+        open={showCurriculumModal}
+        curriculums={curriculums}
+        loading={curriculumLoading}
+        error={curriculumError}
+        onCreate={handleCreateCurriculum}
+        onDelete={handleDeleteCurriculum}
+        onClose={() => setShowCurriculumModal(false)}
       />
 
       <div className="top-bar">
@@ -510,7 +544,14 @@ export default function DashboardPage() {
           </label>
           <button
             className="btn btn-outline"
-            onClick={fetchData}
+            style={{ fontSize: 12 }}
+            onClick={() => setShowCurriculumModal(true)}
+          >
+            커리큘럼 관리
+          </button>
+          <button
+            className="btn btn-outline"
+            onClick={() => { void fetchData(); }}
             disabled={loading}
             style={{ fontSize: 12 }}
           >
@@ -519,7 +560,7 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {error && (
+      {(error || curriculumError) && (
         <div
           style={{
             padding: '10px 24px',
@@ -529,7 +570,7 @@ export default function DashboardPage() {
             color: '#92400e',
           }}
         >
-          안내: {error}
+          안내: {error || curriculumError}
         </div>
       )}
 
@@ -537,19 +578,34 @@ export default function DashboardPage() {
         {sidebarOpen && (
           <aside className="dashboard-sidebar">
             <div className="card dashboard-sidebar-card">
-              <p className="card-title">커리큘럼</p>
+              <div className="section-divider" style={{ marginBottom: 12 }}>
+                <p className="card-title" style={{ marginBottom: 0 }}>커리큘럼</p>
+                <button
+                  type="button"
+                  className="btn btn-outline"
+                  style={{ fontSize: 11, padding: '4px 8px' }}
+                  onClick={() => setShowCurriculumModal(true)}
+                >
+                  관리
+                </button>
+              </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {curriculums.length === 0 && !curriculumLoading && (
+                  <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
+                    등록된 커리큘럼이 없습니다.
+                  </div>
+                )}
                 {curriculums.map((curriculum) => (
                   <button
-                    key={curriculum}
-                    className={`tab-btn ${selectedCurriculum === curriculum ? 'active' : ''}`}
+                    key={curriculum.id}
+                    className={`tab-btn ${selectedCurriculum === curriculum.name ? 'active' : ''}`}
                     onClick={() => {
-                      setSelectedCurriculum(curriculum);
+                      setSelectedCurriculum(curriculum.name);
                       setSelectedClass(ALL_CLASSES);
                     }}
                     style={{ width: '100%', justifyContent: 'flex-start', textAlign: 'left' }}
                   >
-                    {curriculum}
+                    {curriculum.name}
                   </button>
                 ))}
               </div>
@@ -563,7 +619,7 @@ export default function DashboardPage() {
               <div>
                 <p className="card-title" style={{ marginBottom: 4 }}>반 선택</p>
                 <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
-                  현재 커리큘럼: {selectedCurriculum}
+                  현재 커리큘럼: {selectedCurriculum || '-'}
                 </div>
               </div>
             </div>

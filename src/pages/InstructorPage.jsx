@@ -7,6 +7,7 @@ import {
   deleteAlert,
   endSession,
   endSessionOnUnload,
+  getCurriculums,
   getSessionAlerts,
   postLectureSummary,
   saveLectureSummary,
@@ -85,6 +86,9 @@ export default function InstructorPage() {
   const [loadingAlerts, setLoadingAlerts] = useState(false);
   const [sessionError, setSessionError] = useState('');
   const [showSilenceToast, setShowSilenceToast] = useState(false);
+  const [curriculums, setCurriculums] = useState([]);
+  const [curriculumLoading, setCurriculumLoading] = useState(false);
+  const [curriculumError, setCurriculumError] = useState('');
 
   const candidateQueueRef = useRef([]);
   const activeCandidateRef = useRef(null);
@@ -255,6 +259,26 @@ export default function InstructorPage() {
     }
   }, []);
 
+  const loadCurriculums = useCallback(async () => {
+    setCurriculumLoading(true);
+    setCurriculumError('');
+    try {
+      const data = await getCurriculums();
+      setCurriculums(Array.isArray(data) ? data : []);
+    } catch (error) {
+      console.warn('load curriculums failed:', error.message);
+      setCurriculumError('커리큘럼 목록을 불러오지 못했습니다.');
+      setCurriculums([]);
+    } finally {
+      setCurriculumLoading(false);
+    }
+  }, []);
+
+  const openSettings = useCallback(async () => {
+    setShowSettings(true);
+    await loadCurriculums();
+  }, [loadCurriculums]);
+
   const handleSettingsConfirm = useCallback(async ({ thresholdPct, curriculum, classId }) => {
     setShowSettings(false);
     setSessionError('');
@@ -399,6 +423,9 @@ export default function InstructorPage() {
     <div className="page-wrapper">
       {showSettings && (
         <SessionSettingsModal
+          curriculums={curriculums}
+          loading={curriculumLoading}
+          error={curriculumError}
           onConfirm={handleSettingsConfirm}
           onCancel={() => setShowSettings(false)}
         />
@@ -422,7 +449,7 @@ export default function InstructorPage() {
           {sessionActive && !connected && (
             <span className="badge badge-orange"><span className="dot dot-gray" />연결 중...</span>
           )}
-          <button className="btn btn-primary" onClick={() => setShowSettings(true)} disabled={sessionActive}>
+          <button className="btn btn-primary" onClick={() => { void openSettings(); }} disabled={sessionActive}>
             수업 시작
           </button>
           <button className="btn btn-danger" onClick={handleEndSession} disabled={!sessionActive}>

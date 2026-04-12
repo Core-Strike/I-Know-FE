@@ -48,6 +48,15 @@ export const getConfusedEvents = (id) =>
 export const getDashboardClasses = (date) =>
   http.get('/api/dashboard/classes', { params: { date } }).then((r) => r.data);
 
+export const getCurriculums = () =>
+  http.get('/api/curriculums').then((r) => r.data);
+
+export const createCurriculum = (name) =>
+  http.post('/api/curriculums', { name }).then((r) => r.data);
+
+export const deleteCurriculum = (curriculumId) =>
+  http.delete(`/api/curriculums/${curriculumId}`).then((r) => r.data);
+
 export const getKeywordReport = ({ date, keyword, curriculum, classId }) =>
   http.get('/api/dashboard/keyword-report', {
     params: {
