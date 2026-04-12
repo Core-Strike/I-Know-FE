@@ -4,6 +4,7 @@ import {
   LineChart, Line, ReferenceLine, CartesianGrid,
 } from 'recharts';
 import { getDashboardClasses } from '../api';
+import KeywordCloudPanel from '../components/KeywordCloudPanel';
 import PinModal from '../components/PinModal';
 import { CURRICULUM_OPTIONS, DEFAULT_CURRICULUM } from '../constants/curriculum';
 import { formatSeoulClock, getSeoulDate } from '../utils/seoulTime';
@@ -90,25 +91,6 @@ function buildDashboardView(items) {
     .map(([keyword, count]) => ({ keyword, count }));
 
   return { kpi, barData, lineData, alertHistory: latestAlertHistory, keywordCloud };
-}
-
-function keywordStyle(count, maxCount) {
-  const ratio = maxCount > 0 ? count / maxCount : 0;
-  const fontSize = 14 + Math.round(ratio * 18);
-  const opacity = 0.55 + ratio * 0.45;
-  const bg = ratio > 0.66 ? '#dbeafe' : ratio > 0.33 ? '#eff6ff' : '#f8fafc';
-
-  return {
-    fontSize,
-    opacity,
-    background: bg,
-    color: '#1e3a8a',
-    padding: '6px 12px',
-    borderRadius: 999,
-    border: '1px solid #bfdbfe',
-    fontWeight: ratio > 0.66 ? 700 : 600,
-    lineHeight: 1.2,
-  };
 }
 
 function EllipsisCell({ value, accent = false }) {
@@ -309,7 +291,6 @@ export default function DashboardPage() {
     [visibleItems],
   );
 
-  const maxKeywordCount = keywordCloud[0]?.count ?? 0;
   const totalPages = Math.max(1, Math.ceil(alertHistory.length / PAGE_SIZE));
   const pagedAlertHistory = useMemo(
     () => alertHistory.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE),
@@ -505,19 +486,7 @@ export default function DashboardPage() {
                 </div>
               </div>
             </div>
-            {keywordCloud.length > 0 ? (
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'center' }}>
-                {keywordCloud.map(({ keyword, count }) => (
-                  <span key={keyword} style={keywordStyle(count, maxKeywordCount)}>
-                    {keyword}
-                  </span>
-                ))}
-              </div>
-            ) : (
-              <div style={{ color: 'var(--text-secondary)', fontSize: 13 }}>
-                아직 표시할 주요 키워드가 없습니다.
-              </div>
-            )}
+            <KeywordCloudPanel items={keywordCloud} />
           </div>
 
           <div className="card">
