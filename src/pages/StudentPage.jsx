@@ -91,12 +91,15 @@ export default function StudentPage() {
             const now = getSeoulDateTime();
             await postConfusedEvent({
               studentId,
+              studentName: studentId,
               sessionId,
               studentCount: 1,
               totalStudentCount: 1,
               capturedAt: now,
               confusedScore: result.confidence ?? 0,
               reason: result.gpt_reason ?? '',
+              signalType: result.signal_type ?? 'FACIAL_INSTABILITY',
+              signalSubtype: result.signal_subtype ?? 'CONFUSED_PATTERN',
             });
             setLastSent(now);
             setCooldown(true);
@@ -147,11 +150,14 @@ export default function StudentPage() {
       const now = getSeoulDateTime();
       await postConfusedEvent({
         studentId,
+        studentName: studentId,
         sessionId,
         studentCount: 1,
         totalStudentCount: 1,
         capturedAt: now,
         confusedScore: 1.0,
+        signalType: 'MANUAL_HELP',
+        signalSubtype: 'MANUAL_BUTTON',
         reason: '학생 직접 신호',
       });
       setLastSent(now);

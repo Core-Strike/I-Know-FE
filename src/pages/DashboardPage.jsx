@@ -29,6 +29,12 @@ function normalizeResponse(dataArray) {
     alertCount: item.alertCount ?? 0,
     participantCount: item.participantCount ?? 0,
     avgConfusedScore: item.avgConfusedScore ?? 0,
+    signalBreakdown: (item.signalBreakdown ?? []).map((signal) => ({
+      signalType: signal.signalType ?? '',
+      label: signal.label ?? signal.signalType ?? '-',
+      count: signal.count ?? 0,
+      ratio: signal.ratio ?? 0,
+    })),
     recentAlerts: (item.recentAlerts ?? []).map((alert, index) => ({
       id: alert.id ?? `${item.classId}-${index}`,
       capturedAt: alert.capturedAt ?? alert.createdAt ?? '',
@@ -91,7 +97,26 @@ function buildDashboardView(items) {
     .slice(0, 24)
     .map(([keyword, count]) => ({ keyword, count }));
 
-  return { kpi, barData, lineData, alertHistory: latestAlertHistory, keywordCloud };
+  const signalCounts = items
+    .flatMap((item) => item.signalBreakdown ?? [])
+    .reduce((acc, signal) => {
+      const current = acc.get(signal.signalType) ?? { label: signal.label, count: 0 };
+      current.count += signal.count ?? 0;
+      acc.set(signal.signalType, current);
+      return acc;
+    }, new Map());
+
+  const totalSignals = Array.from(signalCounts.values()).reduce((sum, item) => sum + item.count, 0);
+  const signalData = Array.from(signalCounts.entries())
+    .map(([signalType, signal]) => ({
+      signalType,
+      label: signal.label,
+      count: signal.count,
+      ratioPct: totalSignals > 0 ? Math.round((signal.count / totalSignals) * 100) : 0,
+    }))
+    .sort((a, b) => b.count - a.count);
+
+  return { kpi, barData, lineData, alertHistory: latestAlertHistory, keywordCloud, signalData };
 }
 
 function EllipsisCell({ value, accent = false }) {
@@ -431,7 +456,7 @@ export default function DashboardPage() {
       .filter((item) => selectedClass === ALL_CLASSES || item.classId === selectedClass)
   ), [items, selectedClass, selectedCurriculum]);
 
-  const { kpi, barData, lineData, alertHistory, keywordCloud } = useMemo(
+  const { kpi, barData, lineData, alertHistory, keywordCloud, signalData } = useMemo(
     () => buildDashboardView(visibleItems),
     [visibleItems],
   );
@@ -697,6 +722,38 @@ export default function DashboardPage() {
                 빨간 점선은 기준값 50%를 뜻합니다.
               </div>
             </div>
+          </div>
+
+          <div className="card">
+            <div className="section-divider" style={{ marginBottom: 14 }}>
+              <div>
+                <h3>이해도 저하 신호 비율</h3>
+                <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 2 }}>
+                  표정 기반 불안정, 시선 이탈, 학생 직접 반응 신호를 비율로 보여줍니다.
+                </div>
+              </div>
+              <span className="text-muted text-sm">
+                총 {signalData.reduce((sum, item) => sum + item.count, 0)}건
+              </span>
+            </div>
+            {signalData.length > 0 ? (
+              <ResponsiveContainer width="100%" height={220}>
+                <BarChart data={signalData} layout="vertical" margin={{ top: 4, right: 12, left: 36, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f0f0ec" />
+                  <XAxis type="number" domain={[0, 100]} tick={{ fontSize: 11 }} unit="%" />
+                  <YAxis type="category" dataKey="label" tick={{ fontSize: 12 }} width={120} />
+                  <Tooltip
+                    contentStyle={{ fontSize: 12, borderRadius: 6 }}
+                    formatter={(value, _name, item) => [`${value}%`, `발생 ${item?.payload?.count ?? 0}건`]}
+                  />
+                  <Bar dataKey="ratioPct" fill="#f59e0b" radius={[0, 6, 6, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <div style={{ padding: '36px 0', textAlign: 'center', fontSize: 13, color: 'var(--text-secondary)' }}>
+                아직 집계된 이해도 저하 신호가 없습니다.
+              </div>
+            )}
           </div>
 
           <div className="card">
