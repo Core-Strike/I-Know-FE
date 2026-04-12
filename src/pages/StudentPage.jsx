@@ -362,7 +362,7 @@ export default function StudentPage() {
                 />
               </div>
               <div className="score-bar-sub">
-                <span>기준값 {threshold} · 주요 감정: <strong>{EMOTION_LABELS[emotion] ?? emotion}</strong></span>
+                <span>주요 감정: <strong>{EMOTION_LABELS[emotion] ?? emotion}</strong></span>
                 <span>연속 감지: {confusedStreak}/{CONFUSED_STREAK_NEEDED}</span>
               </div>
             </div>
