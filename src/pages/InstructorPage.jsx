@@ -145,6 +145,16 @@ export default function InstructorPage() {
 
   const handleSilenceWarning = useCallback(() => setShowSilenceToast(true), []);
 
+  // 음소거 전환 — 음소거 시 STT도 함께 중단 (SpeechRecognition은 별도 마이크 스트림 사용)
+  const handleToggleMute = useCallback(() => {
+    if (!mic.muted) {
+      // 음소거로 전환: 진행 중인 STT 기록 중단 + 배치 초기화
+      stt.stopRecording();
+      recordingBatchRef.current = null;
+    }
+    mic.toggleMute();
+  }, [mic, stt]);
+
   const mic = useMicrophone({
     onChunk: () => {},
     chunkMs: 5000,
@@ -558,7 +568,7 @@ export default function InstructorPage() {
                 <button
                   className={`btn ${mic.muted ? 'btn-primary' : 'btn-outline'}`}
                   style={{ fontSize: 12, padding: '4px 12px' }}
-                  onClick={mic.toggleMute}
+                  onClick={handleToggleMute}
                 >
                   {mic.muted ? '음소거 해제' : '음소거'}
                 </button>
