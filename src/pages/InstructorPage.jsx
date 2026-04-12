@@ -145,7 +145,16 @@ export default function InstructorPage() {
 
   const handleSilenceWarning = useCallback(() => setShowSilenceToast(true), []);
 
+  const mic = useMicrophone({
+    onChunk: () => {},
+    chunkMs: 5000,
+    onSilenceWarning: handleSilenceWarning,
+  });
+
+  const stt = useSpeechRecognition();
+
   // 음소거 전환 — 음소거 시 STT도 함께 중단 (SpeechRecognition은 별도 마이크 스트림 사용)
+  // mic, stt 선언 이후에 위치해야 의존성 배열 평가 시 TDZ 오류가 발생하지 않음
   const handleToggleMute = useCallback(() => {
     if (!mic.muted) {
       // 음소거로 전환: 진행 중인 STT 기록 중단 + 배치 초기화
@@ -154,14 +163,6 @@ export default function InstructorPage() {
     }
     mic.toggleMute();
   }, [mic, stt]);
-
-  const mic = useMicrophone({
-    onChunk: () => {},
-    chunkMs: 5000,
-    onSilenceWarning: handleSilenceWarning,
-  });
-
-  const stt = useSpeechRecognition();
 
   const upsertAlert = useCallback((raw, fallback = {}) => {
     const normalized = normalizeAlert(raw, fallback);
