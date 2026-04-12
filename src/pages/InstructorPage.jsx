@@ -524,7 +524,8 @@ export default function InstructorPage() {
           }}
         >
           <span style={{ fontSize: 13, color: '#1d4ed8', fontWeight: 600 }}>
-            학생들에게 아래 수업 ID를 공유해 주세요.
+            학생들에게 아래 수업 코드를 공유해 주세요.
+            <span style={{ fontWeight: 400, marginLeft: 6, color: '#3b82f6' }}>(영문+숫자 8자리)</span>
           </span>
           <span
             style={{
