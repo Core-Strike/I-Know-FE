@@ -426,9 +426,9 @@ function AiCoachingModal({ open, loading, error, coaching, onClose }) {
           }}
         >
           <div>
-            <h3 style={{ fontSize: 18, fontWeight: 700, marginBottom: 6 }}>AI 코칭 리포트</h3>
+            <h3 style={{ fontSize: 18, fontWeight: 700, marginBottom: 6 }}>AI 수업 분석 리포트</h3>
             <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
-              대시보드 데이터를 바탕으로 바로 실행할 수 있는 코칭을 제안합니다.
+              수업 데이터를 기반으로 강의 운영에 도움이 될 수 있는 인사이트를 제공합니다.
             </div>
           </div>
           <button type="button" className="btn btn-outline" onClick={onClose}>
@@ -489,7 +489,7 @@ function AiCoachingModal({ open, loading, error, coaching, onClose }) {
 
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 14, marginBottom: 18 }}>
                 <div style={{ border: '1px solid #e5e7eb', borderRadius: 12, padding: 16 }}>
-                  <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', marginBottom: 10 }}>보충 설명 추천 주제</div>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', marginBottom: 10 }}>보충 설명 추천 개념</div>
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
                     {(coaching.reExplainTopics ?? []).map((item) => (
                       <span key={item} className="badge badge-green">{item}</span>
@@ -497,7 +497,7 @@ function AiCoachingModal({ open, loading, error, coaching, onClose }) {
                   </div>
                 </div>
                 <div style={{ border: '1px solid #e5e7eb', borderRadius: 12, padding: 16 }}>
-                  <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', marginBottom: 10 }}>학생 신호 해석</div>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', marginBottom: 10 }}>학생 반응 분석</div>
                   <div style={{ display: 'grid', gap: 8 }}>
                     {(coaching.studentSignals ?? []).map((item) => (
                       <div key={item} style={{ fontSize: 13, lineHeight: 1.6 }}>{item}</div>
@@ -507,7 +507,7 @@ function AiCoachingModal({ open, loading, error, coaching, onClose }) {
               </div>
 
               <div style={{ marginBottom: 18 }}>
-                <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', marginBottom: 8 }}>지금 바로 할 행동</div>
+                <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', marginBottom: 8 }}>다음 수업 적용 제안</div>
                 <div
                   style={{
                     background: '#eff6ff',
@@ -525,7 +525,7 @@ function AiCoachingModal({ open, loading, error, coaching, onClose }) {
 
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 14 }}>
                 <div style={{ border: '1px solid #e5e7eb', borderRadius: 12, padding: 16 }}>
-                  <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', marginBottom: 10 }}>코칭 팁</div>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', marginBottom: 10 }}>강의 개선 가이드</div>
                   <div style={{ display: 'grid', gap: 8 }}>
                     {(coaching.coachingTips ?? []).map((item) => (
                       <div key={item} style={{ fontSize: 13, lineHeight: 1.6 }}>{item}</div>
@@ -533,7 +533,7 @@ function AiCoachingModal({ open, loading, error, coaching, onClose }) {
                   </div>
                 </div>
                 <div style={{ border: '1px solid #e5e7eb', borderRadius: 12, padding: 16 }}>
-                  <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', marginBottom: 10 }}>바로 써볼 멘트</div>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', marginBottom: 10 }}>이렇게 말해 보세요</div>
                   <div style={{ display: 'grid', gap: 8 }}>
                     {(coaching.sampleMentions ?? []).map((item) => (
                       <div key={item} style={{ fontSize: 13, lineHeight: 1.6 }}>{item}</div>
