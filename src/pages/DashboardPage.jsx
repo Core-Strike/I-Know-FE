@@ -3,7 +3,7 @@ import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
   LineChart, Line, ReferenceLine, CartesianGrid,
 } from 'recharts';
-import { getDashboardClasses } from '../api';
+import { getDashboardClasses, getKeywordReport } from '../api';
 import KeywordCloudPanel from '../components/KeywordCloudPanel';
 import PinModal from '../components/PinModal';
 import { CURRICULUM_OPTIONS, DEFAULT_CURRICULUM } from '../constants/curriculum';
@@ -223,6 +223,133 @@ function AlertDetailModal({ alert, onClose }) {
   );
 }
 
+function KeywordReportModal({ keyword, report, loading, error, onClose }) {
+  if (!keyword) {
+    return null;
+  }
+
+  return (
+    <div
+      style={{
+        position: 'fixed',
+        inset: 0,
+        background: 'rgba(0,0,0,0.45)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: 24,
+        zIndex: 1200,
+      }}
+      onClick={onClose}
+    >
+      <div
+        className="card"
+        style={{
+          width: 'min(640px, 100%)',
+          maxHeight: 'min(680px, calc(100vh - 48px))',
+          padding: 0,
+          display: 'flex',
+          flexDirection: 'column',
+        }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div
+          style={{
+            padding: '20px 22px 16px',
+            borderBottom: '1px solid var(--border)',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'flex-start',
+            gap: 16,
+          }}
+        >
+          <div>
+            <h3 style={{ fontSize: 18, fontWeight: 700, marginBottom: 6 }}>{keyword} 리포트</h3>
+            <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
+              주요 키워드 기반 학습 리포트
+            </div>
+          </div>
+          <button type="button" className="btn btn-outline" onClick={onClose}>
+            닫기
+          </button>
+        </div>
+
+        <div style={{ padding: 22, overflowY: 'auto', minHeight: 0 }}>
+          {loading && (
+            <div style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
+              리포트를 불러오는 중입니다...
+            </div>
+          )}
+
+          {!loading && error && (
+            <div style={{ fontSize: 13, color: '#b91c1c', lineHeight: 1.6 }}>
+              {error}
+            </div>
+          )}
+
+          {!loading && !error && report && (
+            <>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 12, marginBottom: 18 }}>
+                {[
+                  { label: '알림 횟수', value: `${report.alertCount}건` },
+                  { label: '평균 이해도', value: `${report.avgUnderstanding}%` },
+                  { label: '보충 필요도', value: `${report.reinforcementNeed}%` },
+                ].map((item) => (
+                  <div
+                    key={item.label}
+                    style={{
+                      border: '1px solid #dbe4f0',
+                      borderRadius: 14,
+                      padding: '14px 16px',
+                      background: '#f8fbff',
+                    }}
+                  >
+                    <div style={{ fontSize: 12, color: '#64748b', marginBottom: 6 }}>{item.label}</div>
+                    <div style={{ fontSize: 24, fontWeight: 800, color: '#0f172a' }}>{item.value}</div>
+                  </div>
+                ))}
+              </div>
+
+              <div style={{ marginBottom: 18 }}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', marginBottom: 8 }}>리포트 요약</div>
+                <div
+                  style={{
+                    background: '#fafaf7',
+                    border: '1px solid var(--border)',
+                    borderRadius: 10,
+                    padding: '14px 16px',
+                    lineHeight: 1.7,
+                    whiteSpace: 'pre-wrap',
+                  }}
+                >
+                  {report.report}
+                </div>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '140px 1fr', gap: 10, fontSize: 13 }}>
+                <div style={{ color: 'var(--text-secondary)' }}>분석 기준일</div>
+                <div>{report.date || '-'}</div>
+                <div style={{ color: 'var(--text-secondary)' }}>커리큘럼</div>
+                <div>{report.curriculum || '-'}</div>
+                <div style={{ color: 'var(--text-secondary)' }}>반</div>
+                <div>{report.classId || '전체 반'}</div>
+                <div style={{ color: 'var(--text-secondary)' }}>보충 필요 수준</div>
+                <div>{report.reinforcementLevel || '-'}</div>
+                <div style={{ color: 'var(--text-secondary)' }}>관련 알림 시각</div>
+                <div>
+                  {report.occurrenceTimes?.length > 0
+                    ? report.occurrenceTimes.join(', ')
+                    : '기록 없음'}
+                </div>
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function DashboardPage() {
   const [pinPassed, setPinPassed] = useState(false);
   const [date, setDate] = useState(todayStr());
@@ -234,6 +361,10 @@ export default function DashboardPage() {
   const [error, setError] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedAlert, setSelectedAlert] = useState(null);
+  const [selectedKeyword, setSelectedKeyword] = useState('');
+  const [keywordReport, setKeywordReport] = useState(null);
+  const [keywordReportLoading, setKeywordReportLoading] = useState(false);
+  const [keywordReportError, setKeywordReportError] = useState('');
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -300,7 +431,31 @@ export default function DashboardPage() {
   useEffect(() => {
     setCurrentPage(1);
     setSelectedAlert(null);
+    setSelectedKeyword('');
+    setKeywordReport(null);
+    setKeywordReportError('');
   }, [date, selectedCurriculum, selectedClass, items]);
+
+  const handleKeywordClick = useCallback(async (keyword) => {
+    setSelectedKeyword(keyword);
+    setKeywordReport(null);
+    setKeywordReportError('');
+    setKeywordReportLoading(true);
+
+    try {
+      const data = await getKeywordReport({
+        date,
+        keyword,
+        curriculum: selectedCurriculum,
+        classId: selectedClass === ALL_CLASSES ? '' : selectedClass,
+      });
+      setKeywordReport(data);
+    } catch (fetchError) {
+      setKeywordReportError(`키워드 리포트를 불러오지 못했습니다. (${fetchError.message})`);
+    } finally {
+      setKeywordReportLoading(false);
+    }
+  }, [date, selectedClass, selectedCurriculum]);
 
   if (!pinPassed) {
     return <PinModal onSuccess={() => setPinPassed(true)} />;
@@ -309,6 +464,17 @@ export default function DashboardPage() {
   return (
     <div className="page-wrapper">
       <AlertDetailModal alert={selectedAlert} onClose={() => setSelectedAlert(null)} />
+      <KeywordReportModal
+        keyword={selectedKeyword}
+        report={keywordReport}
+        loading={keywordReportLoading}
+        error={keywordReportError}
+        onClose={() => {
+          setSelectedKeyword('');
+          setKeywordReport(null);
+          setKeywordReportError('');
+        }}
+      />
 
       <div className="top-bar">
         <div className="top-bar-left">
@@ -486,7 +652,7 @@ export default function DashboardPage() {
                 </div>
               </div>
             </div>
-            <KeywordCloudPanel items={keywordCloud} />
+            <KeywordCloudPanel items={keywordCloud} onKeywordClick={(keyword) => { void handleKeywordClick(keyword); }} />
           </div>
 
           <div className="card">

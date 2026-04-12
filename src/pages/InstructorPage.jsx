@@ -654,6 +654,16 @@ export default function InstructorPage() {
               <div className="alert-card-title">접수된 알림</div>
               <div className="alert-card-meta">{alert.time}</div>
 
+              {alert.keywords?.length > 0 && (
+                <div style={{ marginTop: 10, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                  {alert.keywords.map((keyword) => (
+                    <span key={`${alert.id}-${keyword}`} className="badge badge-green">
+                      {keyword}
+                    </span>
+                  ))}
+                </div>
+              )}
+
               <div style={{ marginTop: 10, borderTop: '1px solid var(--border)', paddingTop: 10 }}>
                 <div style={{ fontSize: 11, fontWeight: 700, color: '#374151', marginBottom: 6 }}>
                   전체 전사

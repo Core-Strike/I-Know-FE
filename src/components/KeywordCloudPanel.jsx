@@ -26,7 +26,7 @@ function buildWords(items) {
   });
 }
 
-function GaugeItem({ rank, keyword, count, maxCount }) {
+function GaugeItem({ rank, keyword, count, maxCount, onClick }) {
   const percent = maxCount > 0 ? Math.round((count / maxCount) * 100) : 0;
 
   return (
@@ -41,7 +41,22 @@ function GaugeItem({ rank, keyword, count, maxCount }) {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 8, gap: 12 }}>
         <div>
           <div style={{ fontSize: 11, color: '#64748b', marginBottom: 4 }}>TOP {rank}</div>
-          <div style={{ fontSize: 16, fontWeight: 700, color: '#0f172a' }}>{keyword}</div>
+          <button
+            type="button"
+            onClick={() => onClick?.(keyword)}
+            style={{
+              border: 'none',
+              background: 'transparent',
+              padding: 0,
+              fontSize: 16,
+              fontWeight: 700,
+              color: '#0f172a',
+              cursor: 'pointer',
+              textAlign: 'left',
+            }}
+          >
+            {keyword}
+          </button>
         </div>
         <div style={{ fontSize: 18, fontWeight: 800, color: '#2563eb' }}>{count}</div>
       </div>
@@ -67,7 +82,7 @@ function GaugeItem({ rank, keyword, count, maxCount }) {
   );
 }
 
-export default function KeywordCloudPanel({ items }) {
+export default function KeywordCloudPanel({ items, onKeywordClick }) {
   const [layoutWords, setLayoutWords] = useState([]);
   const mountedRef = useRef(true);
 
@@ -140,11 +155,13 @@ export default function KeywordCloudPanel({ items }) {
                 key={`${word.text}-${word.x}-${word.y}`}
                 textAnchor="middle"
                 transform={`translate(${word.x}, ${word.y}) rotate(${word.rotate})`}
+                onClick={() => onKeywordClick?.(word.text)}
                 style={{
                   fontSize: `${word.size}px`,
                   fontWeight: word.count === maxCount ? 800 : 700,
                   fill: word.color,
                   letterSpacing: '-0.02em',
+                  cursor: 'pointer',
                 }}
               >
                 {word.text}
@@ -163,6 +180,7 @@ export default function KeywordCloudPanel({ items }) {
             keyword={item.keyword}
             count={item.count}
             maxCount={maxCount}
+            onClick={onKeywordClick}
           />
         ))}
       </div>

@@ -48,6 +48,16 @@ export const getConfusedEvents = (id) =>
 export const getDashboardClasses = (date) =>
   http.get('/api/dashboard/classes', { params: { date } }).then((r) => r.data);
 
+export const getKeywordReport = ({ date, keyword, curriculum, classId }) =>
+  http.get('/api/dashboard/keyword-report', {
+    params: {
+      date,
+      keyword,
+      curriculum,
+      classId,
+    },
+  }).then((r) => r.data);
+
 export const analyzeFrame = (blob, studentId) => {
   const form = new FormData();
   form.append('file', blob, 'frame.jpg');
