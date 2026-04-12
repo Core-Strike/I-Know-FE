@@ -19,6 +19,7 @@ const createRandomStudentName = () =>
   String(Math.floor(100000000 + Math.random() * 900000000));
 
 export default function StudentPage() {
+  const SESSION_CHECK_INTERVAL_MS = 5000;
   const { sessionId } = useParams();
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
@@ -47,6 +48,7 @@ export default function StudentPage() {
   const [lastSent, setLastSent] = useState(null);
   const [cooldown, setCooldown] = useState(false);
   const [notice, setNotice] = useState('');
+  const [noticeRedirectHome, setNoticeRedirectHome] = useState(false);
   const cooldownTimer = useRef(null);
   const streakRef = useRef(0);
 
@@ -111,6 +113,47 @@ export default function StudentPage() {
   useEffect(() => () => clearTimeout(cooldownTimer.current), []);
 
   useEffect(() => {
+    if (!active) {
+      return undefined;
+    }
+
+    let cancelled = false;
+
+    const verifySession = async () => {
+      try {
+        const session = await getSession(sessionId);
+        if (cancelled) {
+          return;
+        }
+
+        if (session?.status !== 'ACTIVE') {
+          stop();
+          setNotice('강사가 수업을 종료해서 학생 화면도 함께 종료되었습니다.');
+          setNoticeRedirectHome(true);
+        }
+      } catch (e) {
+        if (cancelled) {
+          return;
+        }
+
+        stop();
+        setNotice('수업이 종료되어 학생 화면을 닫습니다.');
+        setNoticeRedirectHome(true);
+      }
+    };
+
+    void verifySession();
+    const timer = window.setInterval(() => {
+      void verifySession();
+    }, SESSION_CHECK_INTERVAL_MS);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, [active, sessionId, stop]);
+
+  useEffect(() => {
     const currentName = searchParams.get('name')?.trim();
     if (currentName) {
       return;
@@ -139,12 +182,14 @@ export default function StudentPage() {
       const session = await getSession(sessionId);
       if (session?.status !== 'ACTIVE') {
         setNotice('이 수업은 아직 시작되지 않았거나 이미 종료되었습니다. 강사에게 수업 시작 여부를 확인해 주세요.');
+        setNoticeRedirectHome(false);
         return;
       }
 
       await start();
     } catch (e) {
       setNotice('아직 시작되지 않은 수업입니다. 강사가 먼저 해당 수업 ID로 수업을 시작해야 합니다.');
+      setNoticeRedirectHome(false);
     }
   }, [active, sessionId, start, stop]);
 
@@ -168,7 +213,17 @@ export default function StudentPage() {
             <p style={{ fontSize: 14, color: 'var(--text-primary)', lineHeight: 1.6, marginBottom: 18 }}>
               {notice}
             </p>
-            <button className="btn btn-primary" onClick={() => setNotice('')} style={{ justifyContent: 'center', width: '100%' }}>
+            <button
+              className="btn btn-primary"
+              onClick={() => {
+                setNotice('');
+                if (noticeRedirectHome) {
+                  setNoticeRedirectHome(false);
+                  navigate('/');
+                }
+              }}
+              style={{ justifyContent: 'center', width: '100%' }}
+            >
               확인
             </button>
           </div>
