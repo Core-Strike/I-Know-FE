@@ -39,6 +39,31 @@ export const endSessionOnUnload = (id) => {
 export const getSession = (id) =>
   http.get(`/api/sessions/${id}`).then((r) => r.data);
 
+export const joinSessionParticipant = ({ sessionId, studentId, studentName }) =>
+  http.post(`/api/sessions/${encodeURIComponent(sessionId)}/participants/join`, { studentId, studentName }).then((r) => r.data);
+
+export const leaveSessionParticipant = ({ sessionId, studentId, studentName }) =>
+  http.post(`/api/sessions/${encodeURIComponent(sessionId)}/participants/leave`, { studentId, studentName }).then((r) => r.data);
+
+export const leaveSessionParticipantOnUnload = ({ sessionId, studentId, studentName }) => {
+  const url = `${apiBaseUrl}/api/sessions/${encodeURIComponent(sessionId)}/participants/leave`;
+  const body = JSON.stringify({ studentId, studentName });
+
+  if (navigator.sendBeacon) {
+    const ok = navigator.sendBeacon(url, new Blob([body], { type: 'application/json' }));
+    if (ok) {
+      return;
+    }
+  }
+
+  fetch(url, {
+    method: 'POST',
+    keepalive: true,
+    headers: { 'Content-Type': 'application/json' },
+    body,
+  }).catch(() => {});
+};
+
 export const getSessionAlerts = (id) =>
   http.get(`/api/sessions/${id}/alerts`).then((r) => r.data);
 

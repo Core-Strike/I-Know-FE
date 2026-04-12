@@ -37,6 +37,53 @@ function normalizeAlert(raw, fallback = {}) {
   };
 }
 
+function buildAlertBatch(payload) {
+  return {
+    sessionId: payload.sessionId ?? '',
+    classId: payload.classId ?? '',
+    studentCount: payload.studentCount ?? 1,
+    totalStudentCount: payload.totalStudentCount ?? 1,
+    confusedScore: payload.confusedScore ?? 0,
+    reasons: payload.reason ? [payload.reason] : [],
+    capturedAt: payload.capturedAt ?? getSeoulDateTime(),
+    alertHits: 1,
+  };
+}
+
+function mergeAlertBatch(batch, payload) {
+  const nextTotalStudentCount = Math.max(
+    batch.totalStudentCount ?? 1,
+    payload.totalStudentCount ?? 1,
+  );
+  const nextStudentCount = Math.min(
+    nextTotalStudentCount,
+    (batch.studentCount ?? 0) + (payload.studentCount ?? 1),
+  );
+  const nextReasons = [...new Set([
+    ...batch.reasons,
+    ...(payload.reason ? [payload.reason] : []),
+  ])];
+
+  return {
+    ...batch,
+    sessionId: payload.sessionId ?? batch.sessionId,
+    classId: payload.classId ?? batch.classId,
+    studentCount: nextStudentCount,
+    totalStudentCount: nextTotalStudentCount,
+    confusedScore: Math.max(batch.confusedScore ?? 0, payload.confusedScore ?? 0),
+    reasons: nextReasons,
+    capturedAt: payload.capturedAt ?? batch.capturedAt,
+    alertHits: (batch.alertHits ?? 1) + 1,
+  };
+}
+
+function buildBatchReason(batch) {
+  if (!batch.reasons?.length) {
+    return '';
+  }
+  return batch.reasons.join(' / ');
+}
+
 function SilenceToast({ onClose }) {
   useEffect(() => {
     const timer = setTimeout(onClose, 8000);
@@ -90,8 +137,7 @@ export default function InstructorPage() {
   const [curriculumLoading, setCurriculumLoading] = useState(false);
   const [curriculumError, setCurriculumError] = useState('');
 
-  const candidateQueueRef = useRef([]);
-  const activeCandidateRef = useRef(null);
+  const recordingBatchRef = useRef(null);
   const alertsRef = useRef([]);
   const sessionRef = useRef(null);
   const sessionActiveRef = useRef(false);
@@ -134,48 +180,45 @@ export default function InstructorPage() {
     sessionActiveRef.current = sessionActive;
   }, [sessionActive]);
 
-  const processNextCandidateRef = useRef(() => {});
-
-  const finalizeCandidate = useCallback(async (candidate, transcript) => {
+  const finalizeBatch = useCallback(async (batch, transcript) => {
     if (!session) {
       return;
     }
 
     const audioText = transcript.trim();
     console.info('[InstructorPage] STT transcript result', {
-      sessionId: candidate.sessionId ?? session.id,
-      candidateCapturedAt: candidate.capturedAt ?? null,
+      sessionId: batch.sessionId ?? session.id,
+      capturedAt: batch.capturedAt ?? null,
+      alertHits: batch.alertHits ?? 1,
       transcriptLength: audioText.length,
       transcript: audioText,
     });
 
     if (!audioText) {
       console.warn('[InstructorPage] alert save skipped because transcript is empty', {
-        sessionId: candidate.sessionId ?? session.id,
-        candidateCapturedAt: candidate.capturedAt ?? null,
+        sessionId: batch.sessionId ?? session.id,
+        capturedAt: batch.capturedAt ?? null,
       });
-      activeCandidateRef.current = null;
-      processNextCandidateRef.current();
       return;
     }
 
     try {
       const createdAlert = await sendLectureChunk({
-        sessionId: candidate.sessionId ?? session.id,
-        classId: candidate.classId ?? session.classId,
-        studentCount: candidate.studentCount ?? 1,
-        totalStudentCount: candidate.totalStudentCount ?? 1,
-        capturedAt: candidate.capturedAt ?? getSeoulDateTime(),
+        sessionId: batch.sessionId ?? session.id,
+        classId: batch.classId ?? session.classId,
+        studentCount: batch.studentCount ?? 1,
+        totalStudentCount: batch.totalStudentCount ?? 1,
+        capturedAt: batch.capturedAt ?? getSeoulDateTime(),
         audioText,
-        confusedScore: candidate.confusedScore ?? 0,
-        reason: candidate.reason ?? '',
+        confusedScore: batch.confusedScore ?? 0,
+        reason: buildBatchReason(batch),
       });
 
       const normalized = upsertAlert(createdAlert, {
-        sessionId: candidate.sessionId ?? session.id,
-        classId: candidate.classId ?? session.classId,
-        studentCount: candidate.studentCount ?? 1,
-        totalStudentCount: candidate.totalStudentCount ?? 1,
+        sessionId: batch.sessionId ?? session.id,
+        classId: batch.classId ?? session.classId,
+        studentCount: batch.studentCount ?? 1,
+        totalStudentCount: batch.totalStudentCount ?? 1,
       });
 
       updateAlert(normalized.id, {
@@ -204,40 +247,29 @@ export default function InstructorPage() {
         setSessionError('AI 요약 생성에 실패했습니다.');
       }
     } catch (error) {
-      console.warn('candidate finalize error:', error.message);
-    } finally {
-      activeCandidateRef.current = null;
-      processNextCandidateRef.current();
+      console.warn('batch finalize error:', error.message);
     }
   }, [session, upsertAlert, updateAlert]);
 
-  const processNextCandidate = useCallback(() => {
-    if (!sessionActive || stt.recording) {
-      return;
-    }
-
-    const nextCandidate = candidateQueueRef.current.shift();
-    if (!nextCandidate) {
-      return;
-    }
-
+  const handleAlert = useCallback((payload) => {
     if (!stt.supported) {
       setSessionError('현재 브라우저는 음성 인식을 지원하지 않습니다.');
       return;
     }
 
-    activeCandidateRef.current = nextCandidate;
+    if (recordingBatchRef.current) {
+      recordingBatchRef.current = mergeAlertBatch(recordingBatchRef.current, payload);
+      return;
+    }
+
+    const nextBatch = buildAlertBatch(payload);
+    recordingBatchRef.current = nextBatch;
     stt.startRecording((transcript) => {
-      void finalizeCandidate(nextCandidate, transcript);
+      const completedBatch = recordingBatchRef.current ?? nextBatch;
+      recordingBatchRef.current = null;
+      void finalizeBatch(completedBatch, transcript);
     });
-  }, [finalizeCandidate, sessionActive, stt]);
-
-  processNextCandidateRef.current = processNextCandidate;
-
-  const handleAlert = useCallback((payload) => {
-    candidateQueueRef.current.push(payload);
-    processNextCandidateRef.current();
-  }, []);
+  }, [finalizeBatch, stt]);
 
   const { connected } = useStompAlert({
     sessionId: session?.id,
@@ -304,8 +336,7 @@ export default function InstructorPage() {
       };
     }
 
-    candidateQueueRef.current = [];
-    activeCandidateRef.current = null;
+    recordingBatchRef.current = null;
     sessionTerminatedRef.current = false;
     setSession(nextSession);
     setSessionActive(true);
@@ -323,8 +354,7 @@ export default function InstructorPage() {
       console.warn('session end failed:', error.message);
     }
 
-    candidateQueueRef.current = [];
-    activeCandidateRef.current = null;
+    recordingBatchRef.current = null;
     sessionTerminatedRef.current = true;
     setSessionActive(false);
     setSession(null);
@@ -409,8 +439,14 @@ export default function InstructorPage() {
 
   const alertCount = alerts.length;
   const avgConfusion = alertCount
-    ? Math.round(alerts.reduce((sum, item) => sum + (item.confusedScore ?? 0), 0) / alertCount * 100)
+    ? Math.round(alerts.reduce((sum, item) => {
+      const ratio = item.totalStudentCount > 0
+        ? (item.studentCount ?? 0) / item.totalStudentCount
+        : (item.confusedScore ?? 0);
+      return sum + ratio;
+    }, 0) / alertCount * 100)
     : 0;
+  const activeAlertHits = recordingBatchRef.current?.alertHits ?? 0;
   const liveTranscriptPreview = stt.liveTranscript
     ? stt.liveTranscript.slice(-30)
     : '';
@@ -534,7 +570,7 @@ export default function InstructorPage() {
               </div>
             )}
             <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 8, marginBottom: 6 }}>
-              학생 알림이 들어오면 2분 동안 강의 음성을 받아 자동으로 기록합니다.
+              학생 알림이 들어오면 30초 동안 강의 음성을 기록하고, 그 사이의 알림은 하나로 묶어 처리합니다.
             </p>
             {stt.supported && stt.recording && (
               <div
@@ -604,7 +640,7 @@ export default function InstructorPage() {
             {[
               { label: '백엔드 주소', val: import.meta.env.VITE_API_URL || 'http://localhost:8080' },
               { label: '실시간 연결', val: sessionActive ? (connected ? '연결됨' : '연결 중...') : '대기 중' },
-              { label: '대기 중인 알림', val: String(candidateQueueRef.current.length) },
+              { label: '현재 묶음 알림', val: activeAlertHits ? `${activeAlertHits}건` : '없음' },
             ].map(({ label, val }) => (
               <div className="emotion-row" key={label}>
                 <span style={{ color: 'var(--text-secondary)', fontSize: 12 }}>{label}</span>

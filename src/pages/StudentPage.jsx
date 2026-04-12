@@ -1,7 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useWebcam } from '../hooks/useWebcam';
-import { analyzeFrame, getSession, postConfusedEvent } from '../api';
+import {
+  analyzeFrame,
+  getSession,
+  joinSessionParticipant,
+  leaveSessionParticipant,
+  leaveSessionParticipantOnUnload,
+  postConfusedEvent,
+} from '../api';
 import { formatSeoulClock, getSeoulDateTime } from '../utils/seoulTime';
 
 const CONFUSED_STREAK_NEEDED = 3;
@@ -51,6 +58,7 @@ export default function StudentPage() {
   const [noticeRedirectHome, setNoticeRedirectHome] = useState(false);
   const cooldownTimer = useRef(null);
   const streakRef = useRef(0);
+  const joinedRef = useRef(false);
 
   const handleFrame = useCallback(
     async (blob) => {
@@ -128,6 +136,10 @@ export default function StudentPage() {
 
         if (session?.status !== 'ACTIVE') {
           stop();
+          if (joinedRef.current) {
+            joinedRef.current = false;
+            await leaveSessionParticipant({ sessionId, studentId, studentName: studentId });
+          }
           setNotice('강사가 수업을 종료해서 학생 화면도 함께 종료되었습니다.');
           setNoticeRedirectHome(true);
         }
@@ -137,6 +149,10 @@ export default function StudentPage() {
         }
 
         stop();
+        if (joinedRef.current) {
+          joinedRef.current = false;
+          await leaveSessionParticipant({ sessionId, studentId, studentName: studentId });
+        }
         setNotice('수업이 종료되어 학생 화면을 닫습니다.');
         setNoticeRedirectHome(true);
       }
@@ -174,6 +190,14 @@ export default function StudentPage() {
 
   const handleToggleClass = useCallback(async () => {
     if (active) {
+      if (joinedRef.current) {
+        joinedRef.current = false;
+        try {
+          await leaveSessionParticipant({ sessionId, studentId, studentName: studentId });
+        } catch (e) {
+          console.warn('leave session failed', e.message);
+        }
+      }
       stop();
       return;
     }
@@ -186,12 +210,40 @@ export default function StudentPage() {
         return;
       }
 
+      await joinSessionParticipant({ sessionId, studentId, studentName: studentId });
+      joinedRef.current = true;
       await start();
     } catch (e) {
+      if (joinedRef.current) {
+        joinedRef.current = false;
+        try {
+          await leaveSessionParticipant({ sessionId, studentId, studentName: studentId });
+        } catch (leaveError) {
+          console.warn('leave session failed', leaveError.message);
+        }
+      }
       setNotice('아직 시작되지 않은 수업입니다. 강사가 먼저 해당 수업 ID로 수업을 시작해야 합니다.');
       setNoticeRedirectHome(false);
     }
-  }, [active, sessionId, start, stop]);
+  }, [active, sessionId, start, stop, studentId]);
+
+  useEffect(() => {
+    const handlePageExit = () => {
+      if (!joinedRef.current) {
+        return;
+      }
+      joinedRef.current = false;
+      leaveSessionParticipantOnUnload({ sessionId, studentId, studentName: studentId });
+    };
+
+    window.addEventListener('pagehide', handlePageExit);
+    window.addEventListener('beforeunload', handlePageExit);
+
+    return () => {
+      window.removeEventListener('pagehide', handlePageExit);
+      window.removeEventListener('beforeunload', handlePageExit);
+    };
+  }, [sessionId, studentId]);
 
   return (
     <div className="page-wrapper">
@@ -247,7 +299,14 @@ export default function StudentPage() {
           </button>
           <button
             className="btn btn-outline"
-            onClick={() => { stop(); navigate('/'); }}
+            onClick={() => {
+              if (joinedRef.current) {
+                joinedRef.current = false;
+                void leaveSessionParticipant({ sessionId, studentId, studentName: studentId });
+              }
+              stop();
+              navigate('/');
+            }}
           >
             홈으로
           </button>
