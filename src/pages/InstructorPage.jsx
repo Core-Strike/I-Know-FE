@@ -397,6 +397,10 @@ export default function InstructorPage() {
 
   const handleAlert = useCallback(
     async (payload) => {
+      if (mic.muted) {
+        return;
+      }
+
       const metrics = await loadSessionMetrics(payload.sessionId);
 
       if (!stt.supported) {
@@ -426,7 +430,7 @@ export default function InstructorPage() {
         void finalizeBatch(completedBatch, transcript);
       });
     },
-    [finalizeBatch, loadSessionMetrics, session?.thresholdPct, stt],
+    [finalizeBatch, loadSessionMetrics, mic.muted, session?.thresholdPct, stt],
   );
 
   const { connected } = useStompAlert({
@@ -972,7 +976,7 @@ export default function InstructorPage() {
               알림 발생 후 약 2분간 음성 기록이 진행되며, 동일 구간에서는
               알림이 한 번만 표시됩니다.
             </p>
-            {stt.supported && stt.recording && (
+            {stt.supported && stt.recording && !mic.muted && (
               <div
                 style={{
                   display: "flex",
