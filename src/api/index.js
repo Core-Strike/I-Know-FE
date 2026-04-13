@@ -110,6 +110,9 @@ export const postConfusedEvent = (data) =>
 export const sendLectureChunk = (data) =>
   http.post('/api/lecture-chunk', data).then((r) => r.data);
 
+export const saveUnderstandingDifficultyTrend = (data) =>
+  http.post('/api/understanding-difficulty-trends', data).then((r) => r.data);
+
 export const deleteAlert = (alertId) =>
   http.delete(`/api/alerts/${alertId}`).then((r) => r.data);
 

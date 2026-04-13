@@ -13,6 +13,7 @@ import {
   getSessionAlerts,
   postLectureSummary,
   saveLectureSummary,
+  saveUnderstandingDifficultyTrend,
   sendLectureChunk,
 } from "../api";
 import PinModal from "../components/PinModal";
@@ -30,6 +31,7 @@ import { FiTrash2 } from "react-icons/fi";
 const MAX_KEYWORDS = 5;
 const CONFUSION_WINDOW_MS = 2 * 60 * 1000;
 const SESSION_METRICS_POLL_MS = 10000;
+const UNDERSTANDING_TREND_UPLOAD_MS = 2 * 60 * 1000;
 
 function getRecentConfusedStudentCount(events, now = Date.now()) {
   return new Set(
@@ -558,6 +560,44 @@ export default function InstructorPage() {
 
     return () => window.clearInterval(timer);
   }, [loadSessionMetrics, session?.id, sessionActive]);
+
+  useEffect(() => {
+    if (
+      !sessionActive ||
+      !session?.id ||
+      (session.activeParticipantCount ?? 0) <= 0
+    ) {
+      return undefined;
+    }
+
+    const uploadTrend = async () => {
+      const metrics = await loadSessionMetrics(session.id);
+      if (!metrics || (metrics.sessionData?.activeParticipantCount ?? 0) <= 0) {
+        return;
+      }
+
+      try {
+        await saveUnderstandingDifficultyTrend({
+          sessionId: session.id,
+          difficultyScore: metrics.confusionRatio,
+          capturedAt: getSeoulDateTime(),
+        });
+      } catch (error) {
+        console.warn("difficulty trend save failed:", error.message);
+      }
+    };
+
+    const timer = window.setInterval(() => {
+      void uploadTrend();
+    }, UNDERSTANDING_TREND_UPLOAD_MS);
+
+    return () => window.clearInterval(timer);
+  }, [
+    loadSessionMetrics,
+    session?.activeParticipantCount,
+    session?.id,
+    sessionActive,
+  ]);
 
   useEffect(() => {
     const terminateOnPageExit = () => {

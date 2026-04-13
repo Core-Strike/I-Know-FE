@@ -33,28 +33,13 @@ const PAGE_SIZE = 5;
 const TREND_START_HOUR = 9;
 const TREND_END_HOUR = 22;
 
-function parseHourFromCapturedAt(value) {
+function parseHourFromTrendTime(value) {
   if (!value) {
     return null;
   }
 
-  const match = String(value).match(/T(\d{2}):/);
-  if (match) {
-    return Number(match[1]);
-  }
-
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) {
-    return null;
-  }
-
-  const formatter = new Intl.DateTimeFormat("en-CA", {
-    timeZone: "Asia/Seoul",
-    hour: "2-digit",
-    hour12: false,
-  });
-
-  return Number(formatter.format(date));
+  const match = String(value).match(/^(\d{2}):/);
+  return match ? Number(match[1]) : null;
 }
 
 function normalizeResponse(dataArray) {
@@ -73,6 +58,11 @@ function normalizeResponse(dataArray) {
       label: signal.label ?? signal.signalType ?? "-",
       count: signal.count ?? 0,
       ratio: signal.ratio ?? 0,
+    })),
+    difficultyTrend: (item.difficultyTrend ?? []).map((trend) => ({
+      time: trend.time ?? "",
+      avgDifficultyScore: trend.avgDifficultyScore ?? 0,
+      sampleCount: trend.sampleCount ?? 0,
     })),
     recentAlerts: (item.recentAlerts ?? []).map((alert, index) => ({
       id: alert.id ?? `${item.classId}-${index}`,
@@ -126,23 +116,29 @@ function buildDashboardView(items) {
 
   const hourlyBuckets = new Map();
   for (let hour = TREND_START_HOUR; hour <= TREND_END_HOUR; hour += 1) {
-    hourlyBuckets.set(hour, []);
+    hourlyBuckets.set(hour, { weightedTotal: 0, sampleCount: 0 });
   }
 
-  alertHistory.forEach((item) => {
-    const hour = parseHourFromCapturedAt(item.capturedAt);
-    if (hour == null || !hourlyBuckets.has(hour)) {
-      return;
-    }
-    hourlyBuckets.get(hour).push(item.confusion);
+  items.forEach((item) => {
+    (item.difficultyTrend ?? []).forEach((trend) => {
+      const hour = parseHourFromTrendTime(trend.time);
+      if (hour == null || !hourlyBuckets.has(hour)) {
+        return;
+      }
+
+      const bucket = hourlyBuckets.get(hour);
+      const sampleCount =
+        Number(trend.sampleCount) > 0 ? Number(trend.sampleCount) : 1;
+      bucket.weightedTotal +=
+        Number(trend.avgDifficultyScore ?? 0) * sampleCount;
+      bucket.sampleCount += sampleCount;
+    });
   });
 
-  const lineData = Array.from(hourlyBuckets.entries()).map(([hour, values]) => ({
+  const lineData = Array.from(hourlyBuckets.entries()).map(([hour, bucket]) => ({
     time: `${String(hour).padStart(2, "0")}:00`,
-    confusion: values.length
-      ? Math.round(
-          values.reduce((sum, value) => sum + value, 0) / values.length,
-        )
+    confusion: bucket.sampleCount
+      ? Math.round(bucket.weightedTotal / bucket.sampleCount)
       : 0,
   }));
 
