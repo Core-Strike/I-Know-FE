@@ -924,18 +924,6 @@ export default function InstructorPage() {
           >
             {copied ? "복사됨" : "복사"}
           </button>
-          <span style={{ fontSize: 14, color: "#6b7280", marginLeft: "auto" }}>
-            학생 접속 주소:{" "}
-            <code
-              style={{
-                background: "#dbeafe",
-                padding: "2px 6px",
-                borderRadius: 4,
-              }}
-            >
-              {window.location.origin}/student/{session.id}
-            </code>
-          </span>
         </div>
       )}
 
