@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+﻿import { useCallback, useEffect, useRef, useState } from "react";
 import { useStompAlert } from "../hooks/useStompAlert";
 import { useMicrophone } from "../hooks/useMicrophone";
 import { useSpeechRecognition } from "../hooks/useSpeechRecognition";
@@ -7,7 +7,9 @@ import {
   deleteAlert,
   endSession,
   endSessionOnUnload,
+  getConfusedEvents,
   getCurriculums,
+  getSession,
   getSessionAlerts,
   postLectureSummary,
   saveLectureSummary,
@@ -26,6 +28,8 @@ import { IoPlay, IoStop } from "react-icons/io5";
 import { FiTrash2 } from "react-icons/fi";
 
 const MAX_KEYWORDS = 5;
+const CONFUSION_WINDOW_MS = 2 * 60 * 1000;
+const SESSION_METRICS_POLL_MS = 10000;
 
 function normalizeKeywordList(items) {
   if (!Array.isArray(items)) {
@@ -187,6 +191,7 @@ export default function InstructorPage() {
   const [sessionActive, setSessionActive] = useState(false);
   const [copied, setCopied] = useState(false);
   const [alerts, setAlerts] = useState([]);
+  const [confusedEvents, setConfusedEvents] = useState([]);
   const [loadingAlerts, setLoadingAlerts] = useState(false);
   const [sessionError, setSessionError] = useState("");
   const [showSilenceToast, setShowSilenceToast] = useState(false);
@@ -210,11 +215,11 @@ export default function InstructorPage() {
 
   const stt = useSpeechRecognition();
 
-  // 음소거 전환 — 음소거 시 STT도 함께 중단 (SpeechRecognition은 별도 마이크 스트림 사용)
-  // mic, stt 선언 이후에 위치해야 의존성 배열 평가 시 TDZ 오류가 발생하지 않음
+  // 음소거로 전환할 때는 진행 중인 STT 기록도 함께 중단한다.
+  // mic, stt 선언 이후에 배치해야 TDZ 오류를 피할 수 있다.
   const handleToggleMute = useCallback(() => {
     if (!mic.muted) {
-      // 음소거로 전환: 진행 중인 STT 기록 중단 + 배치 초기화
+      // 음소거 전환 시 진행 중인 STT를 멈추고 배치 상태를 초기화한다.
       stt.stopRecording();
       recordingBatchRef.current = null;
     }
@@ -325,10 +330,39 @@ export default function InstructorPage() {
     [session, upsertAlert, updateAlert],
   );
 
+  const loadSessionMetrics = useCallback(async (sessionId) => {
+    try {
+      const [sessionData, eventData] = await Promise.all([
+        getSession(sessionId),
+        getConfusedEvents(sessionId),
+      ]);
+
+      setSession((prev) =>
+        prev
+          ? {
+              ...prev,
+              classId: sessionData.classId ?? prev.classId,
+              thresholdPct: sessionData.thresholdPct ?? prev.thresholdPct,
+              curriculum: sessionData.curriculum ?? prev.curriculum,
+              activeParticipantCount:
+                sessionData.activeParticipantCount ??
+                prev.activeParticipantCount ??
+                0,
+            }
+          : prev,
+      );
+      setConfusedEvents(Array.isArray(eventData) ? eventData : []);
+    } catch (error) {
+      console.warn("load session metrics failed:", error.message);
+    }
+  }, []);
+
   const handleAlert = useCallback(
     (payload) => {
+      void loadSessionMetrics(payload.sessionId);
+
       if (!stt.supported) {
-        setSessionError("현재 브라우저는 음성 인식을 지원하지 않습니다.");
+        setSessionError("현재 브라우저에서는 음성 인식 기능을 지원하지 않습니다.");
         return;
       }
 
@@ -348,7 +382,7 @@ export default function InstructorPage() {
         void finalizeBatch(completedBatch, transcript);
       });
     },
-    [finalizeBatch, stt],
+    [finalizeBatch, loadSessionMetrics, stt],
   );
 
   const { connected } = useStompAlert({
@@ -413,6 +447,7 @@ export default function InstructorPage() {
             : getSeoulTime(),
           thresholdPct: data.thresholdPct ?? thresholdPct,
           curriculum: data.curriculum ?? curriculum,
+          activeParticipantCount: data.activeParticipantCount ?? 0,
         };
       } catch (error) {
         console.warn(
@@ -431,6 +466,7 @@ export default function InstructorPage() {
           startedAt: getSeoulTime(),
           thresholdPct,
           curriculum,
+          activeParticipantCount: 0,
         };
       }
 
@@ -439,10 +475,14 @@ export default function InstructorPage() {
       setSession(nextSession);
       setSessionActive(true);
       setAlerts([]);
+      setConfusedEvents([]);
       await mic.start();
-      await loadAlerts(nextSession.id, nextSession.classId);
+      await Promise.all([
+        loadAlerts(nextSession.id, nextSession.classId),
+        loadSessionMetrics(nextSession.id),
+      ]);
     },
-    [loadAlerts, mic],
+    [loadAlerts, loadSessionMetrics, mic],
   );
 
   const handleEndSession = useCallback(async () => {
@@ -459,9 +499,23 @@ export default function InstructorPage() {
     setSessionActive(false);
     setSession(null);
     setAlerts([]);
+    setConfusedEvents([]);
     mic.stop();
     stt.stopRecording();
   }, [mic, session, stt]);
+
+  useEffect(() => {
+    if (!sessionActive || !session?.id) {
+      return undefined;
+    }
+
+    void loadSessionMetrics(session.id);
+    const timer = window.setInterval(() => {
+      void loadSessionMetrics(session.id);
+    }, SESSION_METRICS_POLL_MS);
+
+    return () => window.clearInterval(timer);
+  }, [loadSessionMetrics, session?.id, sessionActive]);
 
   useEffect(() => {
     const terminateOnPageExit = () => {
@@ -648,20 +702,30 @@ export default function InstructorPage() {
   );
 
   const alertCount = alerts.length;
-  const avgConfusion = alertCount
-    ? Math.round(
-        (alerts.reduce((sum, item) => {
-          const ratio =
-            item.totalStudentCount > 0
-              ? (item.studentCount ?? 0) / item.totalStudentCount
-              : (item.confusedScore ?? 0);
-          return sum + ratio;
-        }, 0) /
-          alertCount) *
-          100,
-      )
+  const activeParticipantCount = session?.activeParticipantCount ?? 0;
+  const recentConfusedStudentCount = new Set(
+    confusedEvents
+      .filter((event) => {
+        const eventTime = event?.capturedAt
+          ? new Date(event.capturedAt).getTime()
+          : Number.NaN;
+        return (
+          Number.isFinite(eventTime) &&
+          Date.now() - eventTime <= CONFUSION_WINDOW_MS
+        );
+      })
+      .map((event) => event.studentId)
+      .filter(Boolean),
+  ).size;
+  const confusionRatio = activeParticipantCount
+    ? Math.round((recentConfusedStudentCount / activeParticipantCount) * 100)
     : 0;
-  const avgUnderstanding = Math.max(0, 100 - avgConfusion);
+  const avgUnderstanding = activeParticipantCount
+    ? Math.max(0, 100 - confusionRatio)
+    : 0;
+  const understandingGaugeTitle = "실시간 이해도";
+  const understandingGaugeHelperText =
+    "현재 알림 기준으로 계산한 평균 이해도입니다.";
   const activeAlertHits = recordingBatchRef.current?.alertHits ?? 0;
   const liveTranscriptPreview = stt.liveTranscript
     ? stt.liveTranscript.slice(-30)
@@ -692,12 +756,11 @@ export default function InstructorPage() {
           <h2 style={{ fontSize: 18 }}>수업 진행 대시보드</h2>
           {session ? (
             <p style={{ fontSize: 14 }}>
-              수업 #{session.id} · 시작 {session.startedAt} · 반{" "}
-              {session.classId}
+              수업 #{session.id} · 시작 {session.startedAt} · 반 {session.classId}
             </p>
           ) : (
             <p style={{ color: "var(--text-secondary)", fontSize: 14 }}>
-              수업을 시작하면 학생들의 반응 알림이 이곳에 나타납니다.
+              수업을 시작하면 학생들의 반응 알림이 이곳에 표시됩니다.
             </p>
           )}
         </div>
@@ -785,7 +848,7 @@ export default function InstructorPage() {
             style={{ fontSize: 14, padding: "6px 12px" }}
             onClick={handleCopyId}
           >
-            {copied ? "✓ 복사됨" : "복사"}
+            {copied ? "복사됨" : "복사"}
           </button>
           <span style={{ fontSize: 14, color: "#6b7280", marginLeft: "auto" }}>
             학생 접속 주소:{" "}
@@ -836,8 +899,8 @@ export default function InstructorPage() {
                 marginBottom: 6,
               }}
             >
-              알림 발생 후 약 2분간 음성 기록이 진행되며, 동일 구간에서는 알림이
-              한 번만 표시됩니다.
+              알림 발생 후 약 2분간 음성 기록이 진행되며, 동일 구간에서는
+              알림이 한 번만 표시됩니다.
             </p>
             {stt.supported && stt.recording && (
               <div
@@ -856,7 +919,7 @@ export default function InstructorPage() {
               >
                 <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                   <span className="dot dot-green" style={{ flexShrink: 0 }} />
-                  현재 알림에 대한 강의 내용을 기록하고 있습니다...
+                  현재 알림 구간의 강의 내용을 기록하고 있습니다...
                 </div>
                 <div
                   style={{
@@ -878,7 +941,7 @@ export default function InstructorPage() {
               <div
                 style={{ fontSize: 14, color: "#9ca3af", fontStyle: "italic" }}
               >
-                현재 브라우저는 음성 인식 기능을 지원하지 않습니다.
+                현재 브라우저에서는 음성 인식 기능을 지원하지 않습니다.
               </div>
             )}
           </div>
@@ -915,37 +978,36 @@ export default function InstructorPage() {
               </div>
               <div className="stat-box">
                 <div className="stat-val">
-                  {alertCount ? `${avgConfusion}%` : "-"}
+                  {activeParticipantCount ? `${confusionRatio}%` : "-"}
                 </div>
-                <div className="stat-label">평균 이해 어려움 정도</div>
+                <div className="stat-label">실시간 이해 어려움 정도</div>
               </div>
             </div>
           </div>
 
           <UnderstandingDifficultyGauge
             value={avgUnderstanding}
-            title="평균 이해도"
-            helperText="현재 알림 기준으로 계산한 평균 이해도입니다."
+            title={understandingGaugeTitle}
+            helperText={understandingGaugeHelperText}
           />
-
           {/* <div className="card">
-            <p className="card-title">연결 상태</p>
+            <p className="card-title">?곌껐 ?곹깭</p>
             {[
               {
-                label: "백엔드 주소",
+                label: "諛깆뿏??二쇱냼",
                 val: import.meta.env.VITE_API_URL || "http://localhost:8080",
               },
               {
-                label: "실시간 연결",
+                label: "?ㅼ떆媛??곌껐",
                 val: sessionActive
                   ? connected
-                    ? "연결됨"
-                    : "연결 중..."
-                  : "대기 중",
+                    ? "?곌껐??
+                    : "?곌껐 以?.."
+                  : "?湲?以?,
               },
               {
-                label: "현재 묶음 알림",
-                val: activeAlertHits ? `${activeAlertHits}건` : "없음",
+                label: "?꾩옱 臾띠쓬 ?뚮┝",
+                val: activeAlertHits ? `${activeAlertHits}嫄? : "?놁쓬",
               },
             ].map(({ label, val }) => (
               <div className="emotion-row" key={label}>
@@ -1029,7 +1091,7 @@ export default function InstructorPage() {
               아직 들어온 알림이 없습니다.
             </div>
           )}
-          {/* 알림 */}
+          {/* ?뚮┝ */}
           {alerts.map((alert) => (
             <div
               className="alert-card"
@@ -1148,7 +1210,7 @@ export default function InstructorPage() {
                               fontSize: 14,
                               lineHeight: 1,
                             }}
-                            aria-label={`${keyword} 삭제`}
+                            aria-label={`${keyword} 제거`}
                           >
                             x
                           </button>

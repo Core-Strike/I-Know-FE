@@ -13,6 +13,7 @@ import { formatSeoulClock, getSeoulDateTime } from "../utils/seoulTime";
 import { BsCameraVideo } from "react-icons/bs";
 
 const CONFUSED_STREAK_NEEDED = 3;
+const AUTO_ALERT_COOLDOWN_MS = 2 * 60 * 1000;
 const EMOTION_LABELS = {
   happy: "기쁨",
   neutral: "무표정",
@@ -72,6 +73,7 @@ export default function StudentPage() {
   const manualSentTimer = useRef(null);
   const streakRef = useRef(0);
   const joinedRef = useRef(false);
+  const nextAutoAlertAtRef = useRef(0);
 
   const handleFrame = useCallback(
     async (blob) => {
@@ -102,6 +104,12 @@ export default function StudentPage() {
         });
 
         if (result.confused) {
+          if (cooldown) {
+            streakRef.current = 0;
+            setConfusedStreak(0);
+            return;
+          }
+
           streakRef.current += 1;
           setConfusedStreak(streakRef.current);
           if (streakRef.current >= CONFUSED_STREAK_NEEDED && !cooldown) {
@@ -120,10 +128,14 @@ export default function StudentPage() {
             });
             setLastSent(now);
             setCooldown(true);
+            nextAutoAlertAtRef.current = Date.now() + AUTO_ALERT_COOLDOWN_MS;
             streakRef.current = 0;
             setConfusedStreak(0);
             clearTimeout(cooldownTimer.current);
-            cooldownTimer.current = setTimeout(() => setCooldown(false), 30000);
+            cooldownTimer.current = setTimeout(() => {
+              nextAutoAlertAtRef.current = 0;
+              setCooldown(false);
+            }, AUTO_ALERT_COOLDOWN_MS);
           }
         } else {
           streakRef.current = 0;
@@ -144,6 +156,7 @@ export default function StudentPage() {
 
   useEffect(
     () => () => {
+      nextAutoAlertAtRef.current = 0;
       clearTimeout(cooldownTimer.current);
       clearTimeout(manualCooldownTimer.current);
       clearTimeout(manualSentTimer.current);
