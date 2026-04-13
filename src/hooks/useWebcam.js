@@ -1,7 +1,7 @@
 import { useRef, useState, useCallback, useEffect } from 'react';
 
 /**
- * 웹캠 스트림을 열고 10초마다 프레임을 캡처하는 훅.
+ * 웹캠 스트림을 열고 20초마다 프레임을 캡처하는 훅.
  * onFrame(blob) 콜백으로 JPEG Blob 을 전달한다.
  */
 export function useWebcam({ onFrame, intervalMs = 10000, enabled = false }) {
