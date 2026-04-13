@@ -15,6 +15,7 @@ import {
 } from "../api";
 import PinModal from "../components/PinModal";
 import SessionSettingsModal from "../components/SessionSettingsModal";
+import UnderstandingDifficultyGauge from "../components/UnderstandingDifficultyGauge";
 import {
   formatSeoulClock,
   getSeoulDateTime,
@@ -667,6 +668,7 @@ export default function InstructorPage() {
           100,
       )
     : 0;
+  const avgUnderstanding = Math.max(0, 100 - avgConfusion);
   const activeAlertHits = recordingBatchRef.current?.alertHits ?? 0;
   const liveTranscriptPreview = stt.liveTranscript
     ? stt.liveTranscript.slice(-30)
@@ -926,6 +928,12 @@ export default function InstructorPage() {
               </div>
             </div>
           </div>
+
+          <UnderstandingDifficultyGauge
+            value={avgUnderstanding}
+            title="평균 이해도"
+            helperText="현재 알림 기준으로 계산한 평균 이해도입니다."
+          />
 
           {/* <div className="card">
             <p className="card-title">연결 상태</p>
