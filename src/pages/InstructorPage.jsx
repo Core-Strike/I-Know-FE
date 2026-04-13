@@ -507,13 +507,6 @@ export default function InstructorPage() {
     setAlerts((prev) => prev.filter((item) => item.id !== alertId));
   }, []);
 
-  const handleSummaryDraftChange = useCallback(
-    (alertId, summaryDraft) => {
-      updateAlert(alertId, { summaryDraft });
-    },
-    [updateAlert],
-  );
-
   const handleKeywordEditStart = useCallback(
     (alertId) => {
       const currentAlert = alertsRef.current.find((item) => item.id === alertId);
@@ -1304,23 +1297,6 @@ export default function InstructorPage() {
                   >
                     요약
                   </div>
-                  <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                    <button
-                      type="button"
-                      className="btn btn-primary"
-                      style={{ fontSize: 14, padding: "6px 10px" }}
-                      disabled={alert.savingSummary || alert.generatingSummary}
-                      onClick={() => {
-                        void handleSaveSummary(alert.id);
-                      }}
-                    >
-                      {alert.savingSummary
-                        ? "저장 중..."
-                        : alert.summary?.trim()
-                          ? "수정 내용 저장"
-                          : "직접 입력 저장"}
-                    </button>
-                  </div>
                 </div>
                 {alert.generatingSummary && (
                   <div
@@ -1333,27 +1309,21 @@ export default function InstructorPage() {
                     AI 요약을 자동으로 생성하고 있습니다...
                   </div>
                 )}
-                <textarea
-                  value={alert.summaryDraft}
-                  onChange={(e) =>
-                    handleSummaryDraftChange(alert.id, e.target.value)
-                  }
-                  placeholder="요약을 직접 수정할 수 있습니다."
-                  rows={5}
+                <div
                   style={{
-                    width: "100%",
-                    padding: "9px 12px",
+                    padding: "12px 14px",
                     border: "1px solid var(--border)",
                     borderRadius: 8,
                     fontSize: 14,
-                    outline: "none",
-                    resize: "vertical",
-                    fontFamily: "inherit",
                     lineHeight: 1.6,
                     color: "var(--text-primary)",
-                    background: "#fff",
+                    background: "#fafaf7",
+                    minHeight: 96,
+                    whiteSpace: "pre-wrap",
                   }}
-                />
+                >
+                  {alert.summaryDraft?.trim() || "아직 생성된 요약이 없습니다."}
+                </div>
               </div>
             </div>
           ))}

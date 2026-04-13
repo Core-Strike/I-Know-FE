@@ -1,5 +1,8 @@
 import { useState, useRef, useEffect } from "react";
 
+const PIN_AUTH_STORAGE_KEY = "iknow.pinAuth.expiresAt";
+const PIN_AUTH_DURATION_MS = 20 * 60 * 1000;
+
 export default function PinModal({ onSuccess }) {
   const [pin, setPin] = useState("");
   const [error, setError] = useState("");
@@ -7,14 +10,37 @@ export default function PinModal({ onSuccess }) {
   const inputRef = useRef(null);
 
   useEffect(() => {
+    try {
+      const storedExpiresAt = Number(
+        window.localStorage.getItem(PIN_AUTH_STORAGE_KEY) ?? 0,
+      );
+
+      if (storedExpiresAt > Date.now()) {
+        onSuccess();
+        return;
+      }
+
+      window.localStorage.removeItem(PIN_AUTH_STORAGE_KEY);
+    } catch {
+      // Ignore storage access errors and continue with manual PIN entry.
+    }
+
     inputRef.current?.focus();
-  }, []);
+  }, [onSuccess]);
 
   const correctPin = import.meta.env.VITE_INSTRUCTOR_PIN || "1234";
 
   const handleSubmit = (e) => {
     e.preventDefault();
     if (pin === correctPin) {
+      try {
+        window.localStorage.setItem(
+          PIN_AUTH_STORAGE_KEY,
+          String(Date.now() + PIN_AUTH_DURATION_MS),
+        );
+      } catch {
+        // Ignore storage access errors and still allow the current session.
+      }
       onSuccess();
     } else {
       setError("인증 번호가 올바르지 않습니다.");
