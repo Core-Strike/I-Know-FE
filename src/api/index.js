@@ -5,12 +5,12 @@ const aiBaseUrl = (import.meta.env.VITE_AI_URL || 'http://localhost:8000').repla
 
 const http = axios.create({
   baseURL: import.meta.env.VITE_API_URL || 'http://localhost:8080',
-  timeout: 10000,
+  timeout: 300000,
 });
 
 const ai = axios.create({
   baseURL: `${aiBaseUrl}/ai-api`,
-  timeout: 15000,
+  timeout: 300000,
 });
 
 export const createSession = (data) =>
