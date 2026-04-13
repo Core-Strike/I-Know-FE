@@ -30,6 +30,32 @@ import { IoClose } from "react-icons/io5";
 
 const ALL_CLASSES = "전체 반";
 const PAGE_SIZE = 5;
+const TREND_START_HOUR = 9;
+const TREND_END_HOUR = 22;
+
+function parseHourFromCapturedAt(value) {
+  if (!value) {
+    return null;
+  }
+
+  const match = String(value).match(/T(\d{2}):/);
+  if (match) {
+    return Number(match[1]);
+  }
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return null;
+  }
+
+  const formatter = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Seoul",
+    hour: "2-digit",
+    hour12: false,
+  });
+
+  return Number(formatter.format(date));
+}
 
 function normalizeResponse(dataArray) {
   if (!Array.isArray(dataArray)) {
@@ -98,10 +124,27 @@ function buildDashboardView(items) {
     })),
   );
 
-  const lineData = alertHistory
-    .slice()
-    .sort((a, b) => (a.capturedAt ?? "").localeCompare(b.capturedAt ?? ""))
-    .map((item) => ({ time: item.time, confusion: item.confusion }));
+  const hourlyBuckets = new Map();
+  for (let hour = TREND_START_HOUR; hour <= TREND_END_HOUR; hour += 1) {
+    hourlyBuckets.set(hour, []);
+  }
+
+  alertHistory.forEach((item) => {
+    const hour = parseHourFromCapturedAt(item.capturedAt);
+    if (hour == null || !hourlyBuckets.has(hour)) {
+      return;
+    }
+    hourlyBuckets.get(hour).push(item.confusion);
+  });
+
+  const lineData = Array.from(hourlyBuckets.entries()).map(([hour, values]) => ({
+    time: `${String(hour).padStart(2, "0")}:00`,
+    confusion: values.length
+      ? Math.round(
+          values.reduce((sum, value) => sum + value, 0) / values.length,
+        )
+      : 0,
+  }));
 
   const latestAlertHistory = alertHistory
     .slice()

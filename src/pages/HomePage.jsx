@@ -1,14 +1,12 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Logo from "../assets/logo-header.svg";
-
-const createRandomStudentName = () =>
-  String(Math.floor(100000000 + Math.random() * 900000000));
+import { getSession } from "../api";
 
 // 수업 ID 허용 문자: 숫자 + 대문자 알파벳, 8자리
 const SESSION_ID_REGEX = /^[A-Z0-9]{8}$/;
-const SESSION_ID_SANITIZE = (v) =>
-  v
+const SESSION_ID_SANITIZE = (value) =>
+  value
     .toUpperCase()
     .replace(/[^A-Z0-9]/g, "")
     .slice(0, 8);
@@ -19,30 +17,45 @@ export default function HomePage() {
   const [error, setError] = useState("");
   const navigate = useNavigate();
 
-  const handleJoin = (e) => {
+  const handleJoin = async (e) => {
     e.preventDefault();
     const trimmedId = sessionId.trim();
     const trimmedName = name.trim();
-    const studentName = trimmedName || createRandomStudentName();
 
     if (!trimmedId) {
       setError("수업 ID를 입력해 주세요.");
       return;
     }
+
+    if (!trimmedName) {
+      setError("이름을 입력해 주세요.");
+      return;
+    }
+
     if (!SESSION_ID_REGEX.test(trimmedId)) {
       setError("수업 ID는 숫자·대문자 알파벳 8자리여야 합니다.");
       return;
     }
 
+    try {
+      const session = await getSession(trimmedId);
+      if (session?.status !== "ACTIVE") {
+        setError("아직 시작하지 않았거나 이미 종료된 수업입니다.");
+        return;
+      }
+    } catch {
+      setError("유효하지 않거나 아직 시작하지 않은 수업 ID입니다.");
+      return;
+    }
+
     navigate(
-      `/student/${encodeURIComponent(trimmedId)}?name=${encodeURIComponent(studentName)}`,
+      `/student/${encodeURIComponent(trimmedId)}?name=${encodeURIComponent(trimmedName)}`,
     );
   };
 
   const handleSessionIdChange = (e) => {
-    // 소문자 → 대문자 자동 변환, 숫자+대문자만 허용, 최대 8자
-    const val = SESSION_ID_SANITIZE(e.target.value);
-    setSessionId(val);
+    const value = SESSION_ID_SANITIZE(e.target.value);
+    setSessionId(value);
     setError("");
   };
 
@@ -78,7 +91,7 @@ export default function HomePage() {
             marginBottom: 30,
           }}
         >
-          수업 ID를 입력해 수업에 참여해보세요.
+          수업 ID와 이름을 입력해 수업에 참여해보세요.
         </p>
 
         <form
@@ -106,7 +119,7 @@ export default function HomePage() {
           <input
             className="placeholder"
             type="text"
-            placeholder="이름 입력 (비우면 9자리 숫자 자동 생성)"
+            placeholder="이름 입력"
             value={name}
             onChange={(e) => {
               setName(e.target.value);

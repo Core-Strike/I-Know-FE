@@ -24,18 +24,15 @@ const EMOTION_LABELS = {
   surprise: "놀람",
 };
 
-const createRandomStudentName = () =>
-  String(Math.floor(100000000 + Math.random() * 900000000));
-
 export default function StudentPage() {
   const SESSION_CHECK_INTERVAL_MS = 5000;
   const { sessionId } = useParams();
-  const [searchParams, setSearchParams] = useSearchParams();
+  const [searchParams] = useSearchParams();
   const navigate = useNavigate();
 
   const [studentId] = useState(() => {
     const name = searchParams.get("name")?.trim();
-    return name || createRandomStudentName();
+    return name || "";
   });
 
   const [analysisResult, setAnalysisResult] = useState({
@@ -203,6 +200,15 @@ export default function StudentPage() {
   }, [active, manualCooldown, studentId, sessionId]);
 
   useEffect(() => {
+    if (studentId) {
+      return;
+    }
+
+    setNotice("이름을 입력하지 않아 학생 화면을 열 수 없습니다.");
+    setNoticeRedirectHome(true);
+  }, [studentId]);
+
+  useEffect(() => {
     if (!active) {
       return undefined;
     }
@@ -258,17 +264,6 @@ export default function StudentPage() {
       window.clearInterval(timer);
     };
   }, [active, sessionId, stop]);
-
-  useEffect(() => {
-    const currentName = searchParams.get("name")?.trim();
-    if (currentName) {
-      return;
-    }
-
-    const nextParams = new URLSearchParams(searchParams);
-    nextParams.set("name", studentId);
-    setSearchParams(nextParams, { replace: true });
-  }, [searchParams, setSearchParams, studentId]);
 
   const fmtTime = (iso) => formatSeoulClock(iso);
 

@@ -1,9 +1,11 @@
 import { useState, useRef, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 
 const PIN_AUTH_STORAGE_KEY = "iknow.pinAuth.expiresAt";
 const PIN_AUTH_DURATION_MS = 20 * 60 * 1000;
 
 export default function PinModal({ onSuccess }) {
+  const navigate = useNavigate();
   const [pin, setPin] = useState("");
   const [error, setError] = useState("");
   const [shake, setShake] = useState(false);
@@ -92,7 +94,8 @@ export default function PinModal({ onSuccess }) {
           }}
         >
           인증 번호는{" "}
-          <strong style={{ color: "var(--text-primary)" }}>1234</strong>입니다.
+          <strong style={{ color: "var(--text-primary)" }}>1234</strong>
+          입니다.
         </p>
 
         <form
@@ -138,6 +141,18 @@ export default function PinModal({ onSuccess }) {
             }}
           >
             확인
+          </button>
+          <button
+            type="button"
+            className="btn btn-outline"
+            style={{
+              width: "100%",
+              justifyContent: "center",
+              padding: "12px",
+            }}
+            onClick={() => navigate("/")}
+          >
+            홈으로 이동
           </button>
         </form>
       </div>
