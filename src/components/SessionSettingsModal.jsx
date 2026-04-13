@@ -9,7 +9,9 @@ export default function SessionSettingsModal({
 }) {
   const [thresholdPct, setThresholdPct] = useState(45);
   const [curriculum, setCurriculum] = useState(curriculums[0]?.name ?? "");
-  const [classId, setClassId] = useState("class-1");
+  const [classId, setClassId] = useState("");
+
+  const normalizedClassId = classId.trim();
 
   useEffect(() => {
     if (!curriculums.length) {
@@ -26,14 +28,14 @@ export default function SessionSettingsModal({
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    if (!curriculum) {
+    if (!curriculum || !normalizedClassId) {
       return;
     }
 
     onConfirm({
       thresholdPct,
       curriculum,
-      classId: classId.trim() || "class-1",
+      classId: normalizedClassId,
     });
   };
 
@@ -76,7 +78,7 @@ export default function SessionSettingsModal({
         >
           <div>
             <label
-              for="curriculum"
+              htmlFor="curriculum"
               style={{
                 fontSize: 14,
                 fontWeight: 600,
@@ -87,6 +89,7 @@ export default function SessionSettingsModal({
               커리큘럼
             </label>
             <select
+              id="curriculum"
               name="curriculum"
               value={curriculum}
               onChange={(e) => setCurriculum(e.target.value)}
@@ -107,7 +110,7 @@ export default function SessionSettingsModal({
               {curriculums.length === 0 && (
                 <option value="">
                   {loading
-                    ? "커리큘럼 불러오는 중..."
+                    ? "커리큘럼을 불러오는 중..."
                     : "등록된 커리큘럼이 없습니다"}
                 </option>
               )}
@@ -126,6 +129,7 @@ export default function SessionSettingsModal({
 
           <div>
             <label
+              htmlFor="classId"
               style={{
                 fontSize: 14,
                 fontWeight: 600,
@@ -136,10 +140,12 @@ export default function SessionSettingsModal({
               반 이름
             </label>
             <input
+              id="classId"
               type="text"
               value={classId}
               onChange={(e) => setClassId(e.target.value)}
-              placeholder="예: class-1"
+              placeholder="반 이름을 입력하세요"
+              required
               style={{
                 width: "100%",
                 padding: "12px",
@@ -149,6 +155,11 @@ export default function SessionSettingsModal({
                 outline: "none",
               }}
             />
+            {!normalizedClassId && (
+              <div style={{ marginTop: 6, fontSize: 12, color: "#b91c1c" }}>
+                반 이름을 꼭 입력해 주세요.
+              </div>
+            )}
           </div>
 
           <div>
@@ -223,7 +234,12 @@ export default function SessionSettingsModal({
             <button
               type="submit"
               className="btn btn-primary"
-              disabled={loading || curriculums.length === 0 || !curriculum}
+              disabled={
+                loading ||
+                curriculums.length === 0 ||
+                !curriculum ||
+                !normalizedClassId
+              }
             >
               수업 시작
             </button>
