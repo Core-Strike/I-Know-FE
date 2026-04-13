@@ -1,9 +1,16 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
-import cloud from 'd3-cloud';
+import { useEffect, useMemo, useRef, useState } from "react";
+import cloud from "d3-cloud";
 
 const CLOUD_WIDTH = 520;
 const CLOUD_HEIGHT = 280;
-const PALETTE = ['#2563eb', '#0f766e', '#1d4ed8', '#0f766e', '#475569', '#0369a1'];
+const PALETTE = [
+  "#2563eb",
+  "#0f766e",
+  "#1d4ed8",
+  "#0f766e",
+  "#475569",
+  "#0369a1",
+];
 
 function buildWords(items) {
   if (!items.length) {
@@ -32,52 +39,66 @@ function GaugeItem({ rank, keyword, count, maxCount, onClick }) {
   return (
     <div
       style={{
-        padding: '14px 16px',
-        borderRadius: 14,
-        border: '1px solid #dbe4f0',
-        background: 'linear-gradient(180deg, #ffffff 0%, #f8fbff 100%)',
+        padding: "14px 16px",
+        borderRadius: 12,
+        border: "1px solid #dbe4f0",
+        background: "linear-gradient(180deg, #ffffff 0%, #f8fbff 100%)",
       }}
     >
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 8, gap: 12 }}>
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "baseline",
+          marginBottom: 8,
+          gap: 12,
+        }}
+      >
         <div>
-          <div style={{ fontSize: 11, color: '#64748b', marginBottom: 4 }}>TOP {rank}</div>
+          <div style={{ fontSize: 11, color: "#64748b", marginBottom: 4 }}>
+            TOP {rank}
+          </div>
           <button
             type="button"
             onClick={() => onClick?.(keyword)}
             style={{
-              border: 'none',
-              background: 'transparent',
+              border: "none",
+              background: "transparent",
               padding: 0,
               fontSize: 16,
               fontWeight: 700,
-              color: '#0f172a',
-              cursor: 'pointer',
-              textAlign: 'left',
+              color: "#0f172a",
+              cursor: "pointer",
+              textAlign: "left",
             }}
           >
             {keyword}
           </button>
         </div>
-        <div style={{ fontSize: 18, fontWeight: 800, color: '#2563eb' }}>{count}</div>
+        <div style={{ fontSize: 18, fontWeight: 800, color: "#2563eb" }}>
+          {count}
+        </div>
       </div>
       <div
         style={{
           height: 10,
           borderRadius: 999,
-          background: '#e2e8f0',
-          overflow: 'hidden',
+          background: "#e2e8f0",
+          overflow: "hidden",
         }}
       >
         <div
           style={{
             width: `${percent}%`,
-            height: '100%',
+            height: "100%",
             borderRadius: 999,
-            background: 'linear-gradient(90deg, #60a5fa 0%, #2563eb 100%)',
+            background: "linear-gradient(90deg, #60a5fa 0%, #2563eb 100%)",
           }}
         />
       </div>
-      <div style={{ marginTop: 8, fontSize: 12, color: '#475569' }}>최다 키워드 대비 {percent}%</div>
+      <div style={{ marginTop: 8, fontSize: 12, color: "#475569" }}>
+        최다 키워드 대비 {percent}%
+      </div>
     </div>
   );
 }
@@ -104,9 +125,9 @@ export default function KeywordCloudPanel({ items, onKeywordClick }) {
       .words(words.map((word) => ({ ...word })))
       .padding(10)
       .rotate((word) => word.rotate)
-      .font('Pretendard, Apple SD Gothic Neo, sans-serif')
+      .font("Pretendard, Apple SD Gothic Neo, sans-serif")
       .fontSize((word) => word.size)
-      .on('end', (computedWords) => {
+      .on("end", (computedWords) => {
         if (mountedRef.current) {
           setLayoutWords(computedWords);
         }
@@ -122,7 +143,7 @@ export default function KeywordCloudPanel({ items, onKeywordClick }) {
 
   if (!items.length) {
     return (
-      <div style={{ color: 'var(--text-secondary)', fontSize: 13 }}>
+      <div style={{ color: "var(--text-secondary)", fontSize: 14 }}>
         아직 표시할 주요 키워드가 없습니다.
       </div>
     );
@@ -131,24 +152,31 @@ export default function KeywordCloudPanel({ items, onKeywordClick }) {
   return (
     <div
       style={{
-        display: 'flex',
-        flexWrap: 'wrap',
+        display: "flex",
+        flexWrap: "wrap",
         gap: 20,
-        alignItems: 'stretch',
+        alignItems: "stretch",
       }}
     >
       <div
         style={{
-          flex: '1 1 420px',
+          flex: "1 1 420px",
           minHeight: CLOUD_HEIGHT,
-          borderRadius: 18,
-          border: '1px solid #dbe4f0',
-          background: 'radial-gradient(circle at top, #f8fbff 0%, #eef5ff 45%, #ffffff 100%)',
+          borderRadius: 12,
+          border: "1px solid #dbe4f0",
+          background:
+            "radial-gradient(circle at top, #f8fbff 0%, #eef5ff 45%, #ffffff 100%)",
           padding: 12,
-          overflow: 'hidden',
+          overflow: "hidden",
         }}
       >
-        <svg viewBox={`0 0 ${CLOUD_WIDTH} ${CLOUD_HEIGHT}`} width="100%" height="100%" role="img" aria-label="주요 키워드 워드 클라우드">
+        <svg
+          viewBox={`0 0 ${CLOUD_WIDTH} ${CLOUD_HEIGHT}`}
+          width="100%"
+          height="100%"
+          role="img"
+          aria-label="주요 키워드 워드 클라우드"
+        >
           <g transform={`translate(${CLOUD_WIDTH / 2}, ${CLOUD_HEIGHT / 2})`}>
             {layoutWords.map((word) => (
               <text
@@ -160,8 +188,8 @@ export default function KeywordCloudPanel({ items, onKeywordClick }) {
                   fontSize: `${word.size}px`,
                   fontWeight: word.count === maxCount ? 800 : 700,
                   fill: word.color,
-                  letterSpacing: '-0.02em',
-                  cursor: 'pointer',
+                  letterSpacing: "-0.02em",
+                  cursor: "pointer",
                 }}
               >
                 {word.text}
@@ -170,9 +198,19 @@ export default function KeywordCloudPanel({ items, onKeywordClick }) {
           </g>
         </svg>
       </div>
-
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 12, flex: '0 1 300px', minWidth: 240 }}>
-        <div style={{ fontSize: 13, color: '#475569', fontWeight: 700 }}>상위 3개 키워드</div>
+      {/* 키워드 순위 */}
+      <div
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          gap: 12,
+          flex: "0 1 300px",
+          minWidth: 240,
+        }}
+      >
+        <div style={{ fontSize: 14, color: "#333333", fontWeight: 700 }}>
+          TOP 3 키워드
+        </div>
         {topKeywords.map((item, index) => (
           <GaugeItem
             key={item.keyword}
