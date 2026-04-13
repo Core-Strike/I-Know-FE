@@ -31,6 +31,31 @@ const MAX_KEYWORDS = 5;
 const CONFUSION_WINDOW_MS = 2 * 60 * 1000;
 const SESSION_METRICS_POLL_MS = 10000;
 
+function getRecentConfusedStudentCount(events, now = Date.now()) {
+  return new Set(
+    (Array.isArray(events) ? events : [])
+      .filter((event) => {
+        const eventTime = event?.capturedAt
+          ? new Date(event.capturedAt).getTime()
+          : Number.NaN;
+        return (
+          Number.isFinite(eventTime) && now - eventTime <= CONFUSION_WINDOW_MS
+        );
+      })
+      .map((event) => event.studentId)
+      .filter(Boolean),
+  ).size;
+}
+
+function getConfusionRatio(events, activeParticipantCount, now = Date.now()) {
+  if (!activeParticipantCount) {
+    return 0;
+  }
+
+  const recentConfusedStudentCount = getRecentConfusedStudentCount(events, now);
+  return Math.round((recentConfusedStudentCount / activeParticipantCount) * 100);
+}
+
 function normalizeKeywordList(items) {
   if (!Array.isArray(items)) {
     return [];
@@ -351,18 +376,35 @@ export default function InstructorPage() {
             }
           : prev,
       );
-      setConfusedEvents(Array.isArray(eventData) ? eventData : []);
+      const normalizedEvents = Array.isArray(eventData) ? eventData : [];
+      setConfusedEvents(normalizedEvents);
+
+      return {
+        sessionData,
+        events: normalizedEvents,
+        confusionRatio: getConfusionRatio(
+          normalizedEvents,
+          sessionData.activeParticipantCount ?? 0,
+        ),
+      };
     } catch (error) {
       console.warn("load session metrics failed:", error.message);
+      return null;
     }
   }, []);
 
   const handleAlert = useCallback(
-    (payload) => {
-      void loadSessionMetrics(payload.sessionId);
+    async (payload) => {
+      const metrics = await loadSessionMetrics(payload.sessionId);
 
       if (!stt.supported) {
         setSessionError("현재 브라우저에서는 음성 인식 기능을 지원하지 않습니다.");
+        return;
+      }
+
+      const thresholdPct = metrics?.sessionData?.thresholdPct ?? session?.thresholdPct ?? 0;
+      const confusionRatio = metrics?.confusionRatio ?? 0;
+      if (confusionRatio < thresholdPct) {
         return;
       }
 
@@ -382,7 +424,7 @@ export default function InstructorPage() {
         void finalizeBatch(completedBatch, transcript);
       });
     },
-    [finalizeBatch, loadSessionMetrics, stt],
+    [finalizeBatch, loadSessionMetrics, session?.thresholdPct, stt],
   );
 
   const { connected } = useStompAlert({
@@ -703,23 +745,11 @@ export default function InstructorPage() {
 
   const alertCount = alerts.length;
   const activeParticipantCount = session?.activeParticipantCount ?? 0;
-  const recentConfusedStudentCount = new Set(
-    confusedEvents
-      .filter((event) => {
-        const eventTime = event?.capturedAt
-          ? new Date(event.capturedAt).getTime()
-          : Number.NaN;
-        return (
-          Number.isFinite(eventTime) &&
-          Date.now() - eventTime <= CONFUSION_WINDOW_MS
-        );
-      })
-      .map((event) => event.studentId)
-      .filter(Boolean),
-  ).size;
-  const confusionRatio = activeParticipantCount
-    ? Math.round((recentConfusedStudentCount / activeParticipantCount) * 100)
-    : 0;
+  const recentConfusedStudentCount = getRecentConfusedStudentCount(confusedEvents);
+  const confusionRatio = getConfusionRatio(
+    confusedEvents,
+    activeParticipantCount,
+  );
   const avgUnderstanding = activeParticipantCount
     ? Math.max(0, 100 - confusionRatio)
     : 0;
