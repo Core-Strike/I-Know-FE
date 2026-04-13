@@ -1446,7 +1446,7 @@ export default function InstructorPage() {
                     whiteSpace: "pre-wrap",
                   }}
                 >
-                  {alert.summaryDraft?.trim() || "아직 생성된 요약이 없습니다."}
+                  {alert.summaryDraft?.trim() || ""}
                 </div>
               </div>
             </div>
