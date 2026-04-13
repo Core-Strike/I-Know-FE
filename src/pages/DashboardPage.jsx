@@ -83,23 +83,10 @@ function normalizeResponse(dataArray) {
 
 function buildDashboardView(items) {
   const totalAlerts = items.reduce((sum, item) => sum + item.alertCount, 0);
-  const avgConfusedPct = items.length
-    ? Math.round(
-        (items.reduce((sum, item) => sum + item.avgConfusedScore, 0) /
-          items.length) *
-          100,
-      )
-    : 0;
-
-  const kpi = {
-    sessions: items.length,
-    alerts: totalAlerts,
-    avgConfusion: avgConfusedPct,
-    students: items.reduce(
-      (sum, item) => sum + (item.participantCount ?? 0),
-      0,
-    ),
-  };
+  const totalStudents = items.reduce(
+    (sum, item) => sum + (item.participantCount ?? 0),
+    0,
+  );
 
   const barData = items.map((item) => ({
     name: item.classId,
@@ -141,6 +128,24 @@ function buildDashboardView(items) {
       ? Math.round(bucket.weightedTotal / bucket.sampleCount)
       : 0,
   }));
+
+  const totalTrendWeightedScore = Array.from(hourlyBuckets.values()).reduce(
+    (sum, bucket) => sum + bucket.weightedTotal,
+    0,
+  );
+  const totalTrendSamples = Array.from(hourlyBuckets.values()).reduce(
+    (sum, bucket) => sum + bucket.sampleCount,
+    0,
+  );
+
+  const kpi = {
+    sessions: items.length,
+    alerts: totalAlerts,
+    avgConfusion: totalTrendSamples
+      ? Math.round(totalTrendWeightedScore / totalTrendSamples)
+      : 0,
+    students: totalStudents,
+  };
 
   const latestAlertHistory = alertHistory
     .slice()
