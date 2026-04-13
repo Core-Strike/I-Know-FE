@@ -122,12 +122,14 @@ function buildDashboardView(items) {
     });
   });
 
-  const lineData = Array.from(hourlyBuckets.entries()).map(([hour, bucket]) => ({
-    time: `${String(hour).padStart(2, "0")}:00`,
-    confusion: bucket.sampleCount
-      ? Math.round(bucket.weightedTotal / bucket.sampleCount)
-      : 0,
-  }));
+  const lineData = Array.from(hourlyBuckets.entries()).map(
+    ([hour, bucket]) => ({
+      time: `${String(hour).padStart(2, "0")}:00`,
+      confusion: bucket.sampleCount
+        ? Math.round(bucket.weightedTotal / bucket.sampleCount)
+        : 0,
+    }),
+  );
 
   const totalTrendWeightedScore = Array.from(hourlyBuckets.values()).reduce(
     (sum, bucket) => sum + bucket.weightedTotal,
@@ -1208,11 +1210,12 @@ export default function DashboardPage() {
                 AI 코칭
               </button>
             </div>
-            <div className="tab-group">
+            <div className="tab-group" style={{ flexWrap: "wrap" }}>
               {classes.map((className) => (
                 <button
                   key={className}
                   className={`tab-btn ${selectedClass === className ? "active" : ""}`}
+                  style={{ whiteSpace: "nowrap" }}
                   onClick={() => setSelectedClass(className)}
                 >
                   {className}
@@ -1437,8 +1440,12 @@ export default function DashboardPage() {
                     <td>{alert.time}</td>
                     <td>
                       <span
-                        className="badge badge-blue"
-                        style={{ fontSize: 11, padding: "2px 8px" }}
+                        style={{
+                          fontSize: 14,
+                          fontWeight: 700,
+                          color: "#357DD2",
+                          padding: "2px 8px",
+                        }}
                       >
                         {alert.classTag}
                       </span>
