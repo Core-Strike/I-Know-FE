@@ -895,10 +895,19 @@ export default function DashboardPage() {
   }, []);
 
   const fetchData = useCallback(async () => {
+    if (!selectedCurriculum) {
+      setItems([]);
+      setError("");
+      return;
+    }
+
     setLoading(true);
     setError("");
     try {
-      const raw = await getDashboardClasses(date);
+      const raw = await getDashboardClasses({
+        date,
+        curriculum: selectedCurriculum,
+      });
       setItems(normalizeResponse(raw));
     } catch (fetchError) {
       setError(`서버 연결에 실패했습니다. (${fetchError.message})`);
@@ -906,15 +915,19 @@ export default function DashboardPage() {
     } finally {
       setLoading(false);
     }
-  }, [date]);
+  }, [date, selectedCurriculum]);
 
   useEffect(() => {
     void loadCurriculums();
   }, [loadCurriculums]);
 
   useEffect(() => {
+    if (!selectedCurriculum) {
+      return;
+    }
+
     void fetchData();
-  }, [fetchData]);
+  }, [fetchData, selectedCurriculum]);
 
   const classes = useMemo(() => {
     const curriculumItems = items.filter(
@@ -997,6 +1010,8 @@ export default function DashboardPage() {
     async (name) => {
       await createCurriculum(name);
       await loadCurriculums();
+      setSelectedCurriculum(name);
+      setSelectedClass(ALL_CLASSES);
     },
     [loadCurriculums],
   );
@@ -1005,9 +1020,9 @@ export default function DashboardPage() {
     async (curriculum) => {
       await deleteCurriculum(curriculum.id);
       await loadCurriculums();
-      await fetchData();
+      setSelectedClass(ALL_CLASSES);
     },
-    [fetchData, loadCurriculums],
+    [loadCurriculums],
   );
 
   const handleOpenAiCoaching = useCallback(async () => {
@@ -1138,7 +1153,7 @@ export default function DashboardPage() {
             onClick={() => {
               void fetchData();
             }}
-            disabled={loading}
+            disabled={loading || !selectedCurriculum}
             style={{ fontSize: 14 }}
           >
             {loading ? "불러오는 중..." : "새로고침"}
@@ -1217,6 +1232,7 @@ export default function DashboardPage() {
                 onClick={() => {
                   void handleOpenAiCoaching();
                 }}
+                disabled={!selectedCurriculum}
               >
                 AI 코칭
               </button>

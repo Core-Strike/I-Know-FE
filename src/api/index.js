@@ -70,8 +70,8 @@ export const getSessionAlerts = (id) =>
 export const getConfusedEvents = (id) =>
   http.get(`/api/sessions/${id}/confused-events`).then((r) => r.data);
 
-export const getDashboardClasses = (date) =>
-  http.get('/api/dashboard/classes', { params: { date } }).then((r) => r.data);
+export const getDashboardClasses = ({ date, curriculum }) =>
+  http.get('/api/dashboard/classes', { params: { date, curriculum } }).then((r) => r.data);
 
 export const getDashboardAiCoachingData = ({ date, curriculum, classId }) =>
   http.post('/api/dashboard/ai-coaching-data', { date, curriculum, classId }).then((r) => r.data);
