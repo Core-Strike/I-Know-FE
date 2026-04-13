@@ -19,6 +19,8 @@ import {
 import PinModal from "../components/PinModal";
 import SessionSettingsModal from "../components/SessionSettingsModal";
 import UnderstandingDifficultyGauge from "../components/UnderstandingDifficultyGauge";
+import GuideModal from "../components/GuideModal";
+import GuideTriggerButton from "../components/GuideTriggerButton";
 import {
   formatSeoulClock,
   getSeoulDateTime,
@@ -225,6 +227,7 @@ export default function InstructorPage() {
   const [curriculums, setCurriculums] = useState([]);
   const [curriculumLoading, setCurriculumLoading] = useState(false);
   const [curriculumError, setCurriculumError] = useState("");
+  const [showGuideModal, setShowGuideModal] = useState(false);
 
   const recordingBatchRef = useRef(null);
   const alertsRef = useRef([]);
@@ -811,6 +814,13 @@ export default function InstructorPage() {
 
   return (
     <div className="page-wrapper">
+      <GuideModal
+        open={showGuideModal}
+        title="강사 페이지 사용 가이드"
+        imageSrc="/강사 페이지.png"
+        imageAlt="강사 페이지 사용 가이드"
+        onClose={() => setShowGuideModal(false)}
+      />
       {showSettings && (
         <SessionSettingsModal
           curriculums={curriculums}
@@ -839,6 +849,7 @@ export default function InstructorPage() {
           )}
         </div>
         <div className="top-bar-right">
+          <GuideTriggerButton onClick={() => setShowGuideModal(true)} />
           {sessionActive && connected && (
             <span className="badge badge-green">
               <span className="dot dot-green" />

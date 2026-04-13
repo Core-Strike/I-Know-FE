@@ -23,6 +23,8 @@ import {
 import CurriculumManagerModal from "../components/CurriculumManagerModal";
 import KeywordCloudPanel from "../components/KeywordCloudPanel";
 import PinModal from "../components/PinModal";
+import GuideModal from "../components/GuideModal";
+import GuideTriggerButton from "../components/GuideTriggerButton";
 import { formatSeoulClock, getSeoulDate } from "../utils/seoulTime";
 import { BsLayoutSidebar } from "react-icons/bs";
 import { GoChevronLeft, GoChevronRight } from "react-icons/go";
@@ -864,6 +866,7 @@ export default function DashboardPage() {
   const [curriculumLoading, setCurriculumLoading] = useState(false);
   const [curriculumError, setCurriculumError] = useState("");
   const [showAiCoachingModal, setShowAiCoachingModal] = useState(false);
+  const [showGuideModal, setShowGuideModal] = useState(false);
   const [aiCoachingLoading, setAiCoachingLoading] = useState(false);
   const [aiCoachingError, setAiCoachingError] = useState("");
   const [aiCoaching, setAiCoaching] = useState(null);
@@ -1036,6 +1039,13 @@ export default function DashboardPage() {
 
   return (
     <div className="page-wrapper">
+      <GuideModal
+        open={showGuideModal}
+        title="관리자 페이지 사용 가이드"
+        imageSrc="/관리자 페이지.png"
+        imageAlt="관리자 페이지 사용 가이드"
+        onClose={() => setShowGuideModal(false)}
+      />
       <AlertDetailModal
         alert={selectedAlert}
         onClose={() => setSelectedAlert(null)}
@@ -1090,6 +1100,7 @@ export default function DashboardPage() {
           </div>
         </div>
         <div className="top-bar-right">
+          <GuideTriggerButton onClick={() => setShowGuideModal(true)} />
           <label
             style={{
               fontSize: 14,

@@ -3,6 +3,8 @@ import { useNavigate } from "react-router-dom";
 import Logo from "../assets/logo-header.svg";
 import { getSession } from "../api";
 import Footer from "../components/Footer";
+import GuideModal from "../components/GuideModal";
+import GuideTriggerButton from "../components/GuideTriggerButton";
 
 // 수업 ID 허용 문자: 숫자 + 대문자 알파벳, 8자리
 const SESSION_ID_REGEX = /^[A-Z0-9]{8}$/;
@@ -16,6 +18,7 @@ export default function HomePage() {
   const [sessionId, setSessionId] = useState("");
   const [name, setName] = useState("");
   const [error, setError] = useState("");
+  const [showGuideModal, setShowGuideModal] = useState(false);
   const navigate = useNavigate();
 
   const handleJoin = async (e) => {
@@ -62,6 +65,13 @@ export default function HomePage() {
 
   return (
     <>
+      <GuideModal
+        open={showGuideModal}
+        title="학생 페이지 사용 가이드"
+        imageSrc="/학생 페이지.png"
+        imageAlt="학생 페이지 사용 가이드"
+        onClose={() => setShowGuideModal(false)}
+      />
       <div
         style={{
           minHeight: "100vh",
@@ -73,8 +83,25 @@ export default function HomePage() {
       >
         <div
           className="card"
-          style={{ width: 360, padding: "36px 32px", textAlign: "center" }}
+          style={{
+            width: 360,
+            padding: "24px 32px 36px",
+            textAlign: "center",
+            position: "relative",
+          }}
         >
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "flex-end",
+              marginBottom: 10,
+            }}
+          >
+            <GuideTriggerButton
+              onClick={() => setShowGuideModal(true)}
+              label="학생 페이지 사용 가이드 열기"
+            />
+          </div>
           <h1 style={{ fontSize: 18, fontWeight: 700 }}>
             <img
               src={Logo}

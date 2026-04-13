@@ -11,6 +11,8 @@ import {
 } from "../api";
 import { formatSeoulClock, getSeoulDateTime } from "../utils/seoulTime";
 import { BsCameraVideo } from "react-icons/bs";
+import GuideModal from "../components/GuideModal";
+import GuideTriggerButton from "../components/GuideTriggerButton";
 
 const CONFUSED_STREAK_NEEDED = 3;
 const AUTO_ALERT_COOLDOWN_MS = 2 * 60 * 1000;
@@ -66,6 +68,7 @@ export default function StudentPage() {
   const [manualSent, setManualSent] = useState(false); // 버튼 눌림 피드백
   const [notice, setNotice] = useState("");
   const [noticeRedirectHome, setNoticeRedirectHome] = useState(false);
+  const [showGuideModal, setShowGuideModal] = useState(false);
   const cooldownTimer = useRef(null);
   const manualCooldownTimer = useRef(null);
   const manualSentTimer = useRef(null);
@@ -353,6 +356,13 @@ export default function StudentPage() {
 
   return (
     <div className="page-wrapper">
+      <GuideModal
+        open={showGuideModal}
+        title="학생 페이지 사용 가이드"
+        imageSrc="/학생 페이지.png"
+        imageAlt="학생 페이지 사용 가이드"
+        onClose={() => setShowGuideModal(false)}
+      />
       {notice && (
         <div
           style={{
@@ -415,6 +425,7 @@ export default function StudentPage() {
           </p>
         </div>
         <div className="top-bar-right">
+          <GuideTriggerButton onClick={() => setShowGuideModal(true)} />
           {active ? (
             <span className="badge badge-green">
               <span className="dot dot-green" />
