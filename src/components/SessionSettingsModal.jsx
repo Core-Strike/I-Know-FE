@@ -67,7 +67,7 @@ export default function SessionSettingsModal({
             marginBottom: 24,
           }}
         >
-          수업을 열기 전에 기본 옵션을 확인해 주세요.
+          수업을 시작하기 전에 기본 설정을 확인해 주세요.
         </p>
 
         <form
@@ -160,7 +160,7 @@ export default function SessionSettingsModal({
               }}
             >
               <span style={{ fontSize: 14, fontWeight: 600 }}>
-                이해 어려움 감지 기준
+                이해 부족 알림 기준
               </span>
               <span
                 style={{

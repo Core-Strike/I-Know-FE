@@ -554,7 +554,7 @@ export default function StudentPage() {
                 textAlign: "center",
               }}
             >
-              강사에게 즉시 알림을 보냅니다 · 2분 후 재전송 가능
+              ‘모르겠어요’를 누르면 이해가 어려운 것으로 반영되며, 일정 기준을 넘으면 알림이 전송됩니다.
             </div>
           )}
         </div>
