@@ -87,7 +87,7 @@ flowchart LR
     Student -->|REST| FastAPI[FastAPI AI]
     Instructor[InstructorPage\nWebSocket + STT + 요약 확인] -->|REST| Spring
     Instructor -->|REST| FastAPI
-    Spring -->|STOMP /topic/alert/{sessionId}| Instructor
+    Spring -->|STOMP topic alert by sessionId| Instructor
     Dashboard[DashboardPage\n통계/키워드/AI 코칭] -->|REST| Spring
     Dashboard -->|REST| FastAPI
 ```
