@@ -14,6 +14,7 @@ import { BsCameraVideo } from "react-icons/bs";
 
 const CONFUSED_STREAK_NEEDED = 3;
 const AUTO_ALERT_COOLDOWN_MS = 2 * 60 * 1000;
+const FACE_ANALYSIS_INTERVAL_MS = 20000;
 const EMOTION_LABELS = {
   happy: "기쁨",
   neutral: "무표정",
@@ -147,7 +148,7 @@ export default function StudentPage() {
 
   const { videoRef, active, error, start, stop } = useWebcam({
     onFrame: handleFrame,
-    intervalMs: 10000,
+    intervalMs: FACE_ANALYSIS_INTERVAL_MS,
     enabled: true,
   });
 
