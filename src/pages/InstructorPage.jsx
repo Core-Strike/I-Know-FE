@@ -24,6 +24,40 @@ import { BsFillMicFill, BsFillMicMuteFill } from "react-icons/bs";
 import { IoPlay, IoStop } from "react-icons/io5";
 import { FiTrash2 } from "react-icons/fi";
 
+const MAX_KEYWORDS = 5;
+
+function normalizeKeywordList(items) {
+  if (!Array.isArray(items)) {
+    return [];
+  }
+
+  const keywords = [];
+  for (const item of items) {
+    if (typeof item !== "string") {
+      continue;
+    }
+
+    const cleaned = item.trim().replace(/\s+/g, " ");
+    if (!cleaned) {
+      continue;
+    }
+
+    if (!keywords.includes(cleaned)) {
+      keywords.push(cleaned);
+    }
+
+    if (keywords.length >= MAX_KEYWORDS) {
+      break;
+    }
+  }
+
+  return keywords;
+}
+
+function normalizeKeywordInput(value) {
+  return value.trim().replace(/\s+/g, " ");
+}
+
 function normalizeAlert(raw, fallback = {}) {
   return {
     id: raw.id,
@@ -39,7 +73,11 @@ function normalizeAlert(raw, fallback = {}) {
     transcript: raw.lectureText ?? "",
     summary: raw.lectureSummary ?? "",
     summaryDraft: raw.lectureSummary ?? "",
-    keywords: raw.keywords ?? [],
+    keywords: normalizeKeywordList(raw.keywords ?? []),
+    keywordDraft: normalizeKeywordList(raw.keywords ?? []),
+    keywordInput: "",
+    editingKeywords: false,
+    keywordError: "",
     generatingSummary: false,
     savingSummary: false,
   };
@@ -475,6 +513,100 @@ export default function InstructorPage() {
     [updateAlert],
   );
 
+  const handleKeywordEditStart = useCallback(
+    (alertId) => {
+      const currentAlert = alertsRef.current.find((item) => item.id === alertId);
+      if (!currentAlert) {
+        return;
+      }
+
+      updateAlert(alertId, {
+        editingKeywords: true,
+        keywordDraft: normalizeKeywordList(currentAlert.keywords ?? []),
+        keywordInput: "",
+        keywordError: "",
+      });
+    },
+    [updateAlert],
+  );
+
+  const handleKeywordEditCancel = useCallback(
+    (alertId) => {
+      const currentAlert = alertsRef.current.find((item) => item.id === alertId);
+      if (!currentAlert) {
+        return;
+      }
+
+      updateAlert(alertId, {
+        editingKeywords: false,
+        keywordDraft: normalizeKeywordList(currentAlert.keywords ?? []),
+        keywordInput: "",
+        keywordError: "",
+      });
+    },
+    [updateAlert],
+  );
+
+  const handleKeywordInputChange = useCallback(
+    (alertId, keywordInput) => {
+      updateAlert(alertId, { keywordInput, keywordError: "" });
+    },
+    [updateAlert],
+  );
+
+  const handleKeywordRemove = useCallback(
+    (alertId, keywordToRemove) => {
+      const currentAlert = alertsRef.current.find((item) => item.id === alertId);
+      if (!currentAlert) {
+        return;
+      }
+
+      updateAlert(alertId, {
+        keywordDraft: (currentAlert.keywordDraft ?? []).filter(
+          (keyword) => keyword !== keywordToRemove,
+        ),
+        keywordError: "",
+      });
+    },
+    [updateAlert],
+  );
+
+  const handleKeywordAdd = useCallback(
+    (alertId) => {
+      const currentAlert = alertsRef.current.find((item) => item.id === alertId);
+      if (!currentAlert) {
+        return;
+      }
+
+      const nextKeyword = normalizeKeywordInput(currentAlert.keywordInput ?? "");
+      const currentDraft = normalizeKeywordList(currentAlert.keywordDraft ?? []);
+
+      if (!nextKeyword) {
+        updateAlert(alertId, { keywordError: "추가할 키워드를 입력해 주세요." });
+        return;
+      }
+
+      if (currentDraft.includes(nextKeyword)) {
+        updateAlert(alertId, { keywordError: "이미 추가된 키워드입니다." });
+        return;
+      }
+
+      if (currentDraft.length >= MAX_KEYWORDS) {
+        updateAlert(alertId, {
+          keywordError: `키워드는 최대 ${MAX_KEYWORDS}개까지 저장할 수 있습니다.`,
+        });
+        return;
+      }
+
+      updateAlert(alertId, {
+        keywordDraft: [...currentDraft, nextKeyword],
+        keywordInput: "",
+        keywordError: "",
+      });
+    },
+    [updateAlert],
+  );
+
   const handleSaveSummary = useCallback(
     async (alertId) => {
       const currentAlert = alertsRef.current.find(
@@ -484,6 +616,12 @@ export default function InstructorPage() {
         return;
       }
 
+      const nextKeywords = normalizeKeywordList(
+        currentAlert.editingKeywords
+          ? currentAlert.keywordDraft ?? []
+          : currentAlert.keywords ?? [],
+      );
+
       updateAlert(alertId, { savingSummary: true });
 
       try {
@@ -491,7 +629,7 @@ export default function InstructorPage() {
           alertId,
           summary: currentAlert.summaryDraft ?? "",
           recommendedConcept: currentAlert.reason ?? "",
-          keywords: currentAlert.keywords ?? [],
+          keywords: nextKeywords,
         });
 
         updateAlert(alertId, {
@@ -499,7 +637,11 @@ export default function InstructorPage() {
           summaryDraft:
             saved?.lectureSummary ?? currentAlert.summaryDraft ?? "",
           reason: saved?.reason ?? currentAlert.reason ?? "",
-          keywords: saved?.keywords ?? currentAlert.keywords ?? [],
+          keywords: saved?.keywords ?? nextKeywords,
+          keywordDraft: saved?.keywords ?? nextKeywords,
+          keywordInput: "",
+          editingKeywords: false,
+          keywordError: "",
           savingSummary: false,
         });
       } catch (error) {
@@ -915,25 +1057,187 @@ export default function InstructorPage() {
               <div className="alert-card-title">알림 상세 정보</div>
               <div className="alert-card-meta">{alert.time}</div>
 
-              {alert.keywords?.length > 0 && (
+              <div
+                style={{
+                  marginTop: 10,
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: 10,
+                }}
+              >
                 <div
                   style={{
-                    marginTop: 10,
                     display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
                     gap: 8,
                     flexWrap: "wrap",
                   }}
                 >
-                  {alert.keywords.map((keyword) => (
-                    <span
-                      key={`${alert.id}-${keyword}`}
-                      className="badge badge-green"
+                  <div
+                    style={{ fontSize: 14, fontWeight: 700, color: "#374151" }}
+                  >
+                    주요 키워드
+                  </div>
+                  {alert.editingKeywords ? (
+                    <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                      <button
+                        type="button"
+                        className="btn btn-outline"
+                        style={{ fontSize: 13, padding: "6px 10px" }}
+                        disabled={alert.savingSummary}
+                        onClick={() => handleKeywordEditCancel(alert.id)}
+                      >
+                        취소
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn-primary"
+                        style={{ fontSize: 13, padding: "6px 10px" }}
+                        disabled={alert.savingSummary || alert.generatingSummary}
+                        onClick={() => {
+                          void handleSaveSummary(alert.id);
+                        }}
+                      >
+                        {alert.savingSummary ? "저장 중..." : "수정 확인"}
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      className="btn btn-outline"
+                      style={{ fontSize: 13, padding: "6px 10px" }}
+                      disabled={alert.savingSummary || alert.generatingSummary}
+                      onClick={() => handleKeywordEditStart(alert.id)}
                     >
-                      {keyword}
-                    </span>
-                  ))}
+                      키워드 수정
+                    </button>
+                  )}
                 </div>
-              )}
+
+                {alert.editingKeywords ? (
+                  <>
+                    <div
+                      style={{
+                        display: "flex",
+                        gap: 8,
+                        flexWrap: "wrap",
+                      }}
+                    >
+                      {(alert.keywordDraft ?? []).map((keyword) => (
+                        <span
+                          key={`${alert.id}-${keyword}`}
+                          className="badge badge-green"
+                          style={{
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: 6,
+                          }}
+                        >
+                          {keyword}
+                          <button
+                            type="button"
+                            onClick={() => handleKeywordRemove(alert.id, keyword)}
+                            style={{
+                              border: "none",
+                              background: "transparent",
+                              padding: 0,
+                              cursor: "pointer",
+                              color: "inherit",
+                              fontSize: 14,
+                              lineHeight: 1,
+                            }}
+                            aria-label={`${keyword} 삭제`}
+                          >
+                            x
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                    <div
+                      style={{
+                        display: "flex",
+                        gap: 8,
+                        flexWrap: "wrap",
+                        alignItems: "center",
+                      }}
+                    >
+                      <input
+                        type="text"
+                        value={alert.keywordInput ?? ""}
+                        onChange={(e) =>
+                          handleKeywordInputChange(alert.id, e.target.value)
+                        }
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            e.preventDefault();
+                            handleKeywordAdd(alert.id);
+                          }
+                        }}
+                        placeholder="키워드를 입력하세요"
+                        style={{
+                          flex: "1 1 220px",
+                          minWidth: 0,
+                          padding: "9px 12px",
+                          border: "1px solid var(--border)",
+                          borderRadius: 8,
+                          fontSize: 14,
+                          outline: "none",
+                          color: "var(--text-primary)",
+                          background: "#fff",
+                        }}
+                      />
+                      <button
+                        type="button"
+                        className="btn btn-outline"
+                        style={{ fontSize: 13, padding: "6px 10px" }}
+                        disabled={(alert.keywordDraft ?? []).length >= MAX_KEYWORDS}
+                        onClick={() => handleKeywordAdd(alert.id)}
+                      >
+                        키워드 추가
+                      </button>
+                    </div>
+                    <div style={{ fontSize: 12, color: "var(--text-secondary)" }}>
+                      최대 {MAX_KEYWORDS}개까지 저장할 수 있습니다.
+                    </div>
+                    {alert.keywordError && (
+                      <div style={{ fontSize: 12, color: "var(--red)" }}>
+                        {alert.keywordError}
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <>
+                    {alert.keywords?.length > 0 ? (
+                      <div
+                        style={{
+                          display: "flex",
+                          gap: 8,
+                          flexWrap: "wrap",
+                        }}
+                      >
+                        {alert.keywords.map((keyword) => (
+                          <span
+                            key={`${alert.id}-${keyword}`}
+                            className="badge badge-green"
+                          >
+                            {keyword}
+                          </span>
+                        ))}
+                      </div>
+                    ) : (
+                      <div
+                        style={{
+                          fontSize: 13,
+                          color: "var(--text-secondary)",
+                        }}
+                      >
+                        등록된 키워드가 없습니다.
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
 
               <div
                 style={{
